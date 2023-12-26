@@ -3,10 +3,6 @@ package org.apache.iotdb.jmeter.test;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.iotdb.jmeter.test.TimestampGenerator;
-import org.apache.iotdb.jmeter.test.ValueGenerator;
 
 import org.apache.iotdb.isession.SessionDataSet;
 import org.apache.iotdb.rpc.IoTDBConnectionException;
@@ -19,10 +15,6 @@ import org.apache.iotdb.tsfile.utils.Binary;
 import org.apache.iotdb.tsfile.utils.Pair;
 import org.apache.iotdb.tsfile.write.record.Tablet;
 import org.apache.iotdb.tsfile.write.schema.MeasurementSchema;
-import org.apache.jmeter.config.Arguments;
-import org.apache.jmeter.protocol.java.sampler.AbstractJavaSamplerClient;
-import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
-import org.apache.jmeter.samplers.SampleResult;
 import org.apache.iotdb.tsfile.compress.ICompressor.IOTDBLZ4Compressor;
 
 public class IoTDBClient {
@@ -42,6 +34,7 @@ public class IoTDBClient {
 
   public void init(String database, long startTime, TimestampGenerator tg) {
     tt = tg;
+    vg = new ValueGenerator();
     database_id = database;
     runStartTime = startTime;
     int instance_id = Integer.parseInt(database_id.substring(13, database_id.length()));

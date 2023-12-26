@@ -86,6 +86,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
       e.printStackTrace();
     }
     //标记事务结束
+    results.setResponseMessage(String.format("In this instance, database is %s, cost time is %ld, finished operation_num is %d", database, en-st, opsDone));
     results.sampleEnd();
     return results;
   }
