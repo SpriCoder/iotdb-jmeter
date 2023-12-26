@@ -26,6 +26,7 @@ import org.apache.jmeter.samplers.SampleResult;
 import org.apache.iotdb.tsfile.compress.ICompressor.IOTDBLZ4Compressor;
 
 public class IoTDBClient {
+    private static final Object CONNECTION_LOCK = new Object();
     private TimestampGenerator tt;
     private ValueGenerator vg;
     private Session session = null;
@@ -42,6 +43,7 @@ public class IoTDBClient {
 
   public void init(String database, long startTime, TimestampGenerator tg) {
     tt = tg;
+    vg = new ValueGenerator();
     database_id = database;
     runStartTime = startTime;
     int instance_id = Integer.parseInt(database_id.substring(13, database_id.length()));
@@ -54,8 +56,10 @@ public class IoTDBClient {
         session = new Session.Builder().host(this.db_host).port(this.db_port).build();
         session.open();
         compressor = new IOTDBLZ4Compressor();
+        synchronized (CONNECTION_LOCK) {
         if (cacheData == null) {
-            cacheData = new HashMap<>();
+                cacheData = new HashMap<>();
+            }
         }
     } catch (IoTDBConnectionException e) {
         System.err.println(
@@ -71,13 +75,15 @@ public class IoTDBClient {
         String device_id = String.format("root.%s.%s", database_id, vg.get_device());
         byte[] compressed = compressor.compress(vg.get_value(device_id + timestamp).getBytes());
         Map<String, Tablet> tablets = null;
-        cacheData.computeIfAbsent(device_id, k -> new ArrayList<>())
-                .add(new Pair<>(timestamp, new Pair<>("field0", compressed)));
-        cacheNum++;
-        if (cacheNum >= cache_threshold) {
-            tablets = generateTablets();
-            cacheNum = 0;
-            cacheData.clear();
+        synchronized (CONNECTION_LOCK) {
+            cacheData.computeIfAbsent(device_id, k -> new ArrayList<>())
+                    .add(new Pair<>(timestamp, new Pair<>("field0", compressed)));
+            cacheNum++;
+            if (cacheNum >= cache_threshold) {
+                tablets = generateTablets();
+                cacheNum = 0;
+                cacheData.clear();
+            }
         }
         if (tablets != null) {
             session.insertTablets(tablets);
@@ -129,14 +135,16 @@ public class IoTDBClient {
     long startTime = timestamp;
     long endTime = timestamp + 5000L;  // The time span is five seconds
     try {
+        synchronized (CONNECTION_LOCK) {
         SessionDataSet dataSet = session.executeRawDataQuery(Collections.singletonList(deviceID), startTime, endTime);  //  executing a query device by device
-        dataSet.setFetchSize(FETCH_SIZE);
-        while (dataSet.hasNext()) {
-            RowRecord record  = dataSet.next();  // get one line data, usually is one column for timestamp and several columns for sensor-value.
-            System.out.println(String.format("scan results from server succeed for deviceID %s from %s to %s",
-                                deviceID, transferLongToDate(startTime), transferLongToDate(endTime)));
+            dataSet.setFetchSize(FETCH_SIZE);
+            while (dataSet.hasNext()) {
+                RowRecord record  = dataSet.next();  // get one line data, usually is one column for timestamp and several columns for sensor-value.
+                System.out.println(String.format("scan results from server succeed for deviceID %s from %s to %s",
+                                    deviceID, transferLongToDate(startTime), transferLongToDate(endTime)));
+            }    
             dataSet.closeOperationHandle();
-        }    
+        }
     } catch (IoTDBConnectionException | StatementExecutionException e) {
         e.printStackTrace();
         return -1;
@@ -151,18 +159,20 @@ public class IoTDBClient {
   }
 
   public void cleanup() {
-    try {
-        if (cacheData.size() > 0) {
-            Map<String, Tablet> tablets = generateTablets();
-            session.insertTablets(tablets);
-            cacheData.clear();
+    synchronized (CONNECTION_LOCK) {
+        try {
+            if (cacheData.size() > 0) {
+                Map<String, Tablet> tablets = generateTablets();
+                session.insertTablets(tablets);
+                cacheData.clear();
+            }
+            session.close();
+            session = null;
+        } catch (IoTDBConnectionException | StatementExecutionException e) {
+            System.err.println(String.format("cleanup session(%s:%s) failed:%s", db_host, db_port, e.toString()));
+            e.printStackTrace();
+            // throw new DBException();
         }
-        session.close();
-        session = null;
-    } catch (IoTDBConnectionException | StatementExecutionException e) {
-        System.err.println(String.format("cleanup session(%s:%s) failed:%s", db_host, db_port, e.toString()));
-        e.printStackTrace();
-        // throw new DBException();
     }
   }
 }
