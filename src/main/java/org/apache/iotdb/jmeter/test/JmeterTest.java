@@ -13,7 +13,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class JmeterTest extends AbstractJavaSamplerClient {
-  private int threadcount;  
+  private int threadcount;
   private int opcount;
   private String database;
   private List<ClientThread> clientThreads;
@@ -24,22 +24,22 @@ public class JmeterTest extends AbstractJavaSamplerClient {
   private long runStartTime;
   private TimestampGenerator tt;
 
-   /**
-    * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
-    * 此方法不用调用，是一个与生命周期相关的方法，类加载则运行。
-    */
-   public Arguments getDefaultParameters() {
-     Arguments arguments = new Arguments();
-     arguments.addArgument("op_count", "127.0.0.1:6667");
-     arguments.addArgument("database", "root");
-     return arguments;
-   }
+  /**
+   * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
+   * 此方法不用调用，是一个与生命周期相关的方法，类加载则运行。
+   */
+  public Arguments getDefaultParameters() {
+    Arguments arguments = new Arguments();
+    arguments.addArgument("op_count", "127.0.0.1:6667");
+    arguments.addArgument("database", "root");
+    return arguments;
+  }
 
   /**
    * 初始化方法，初始化性能测试时的每个线程
    * 实际运行时每个线程仅执行一次，在测试方法运行前执行，类似于LoadRunner中的init方法
    */
-  public void setupTest(JavaSamplerContext jsc){
+  public void setupTest(JavaSamplerContext jsc) {
     threadcount = 10;  // fixed
     opcount = jsc.getIntParameter("op_count");  // adjustab e
     database = jsc.getParameter("database");  // adjustable
@@ -47,7 +47,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     completeLatch = new CountDownLatch(threadcount);
     opsDone = 0;
     runStartTime = System.currentTimeMillis();
-    tt = new TimestampGenerator(100,TimeUnit.MILLISECONDS, System.currentTimeMillis());
+    tt = new TimestampGenerator(100, TimeUnit.MILLISECONDS, System.currentTimeMillis());
   }
 
   /**
@@ -56,7 +56,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public SampleResult runTest(JavaSamplerContext javaSamplerContext) {
     SampleResult results = new SampleResult();
-    results.setSamplerData(database +"\n"+ opcount);
+    results.setSamplerData(database + "\n" + opcount);
     results.setRequestHeaders(database);
     //标记事务开始
     results.sampleStart();
@@ -79,7 +79,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
         entry.getKey().join();
         opsDone += entry.getValue().getOpsDone();
       }
-      en=System.currentTimeMillis();
+      en = System.currentTimeMillis();
       results.setSuccessful(true);
     } catch (Exception e) {
       results.setSuccessful(false);
