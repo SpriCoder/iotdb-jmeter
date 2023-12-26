@@ -11,10 +11,8 @@ import java.util.Arrays;
 import java.util.List;
 
 public class JmeterTest extends AbstractJavaSamplerClient {
-  private List<String> url;
-  private String username;
-  private String password;
-  private Session session;
+  private String database;
+  private int op_count;
 
   /**
    * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
@@ -22,9 +20,8 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public Arguments getDefaultParameters() {
     Arguments arguments = new Arguments();
-    arguments.addArgument("Url", "127.0.0.1:6667");
-    arguments.addArgument("Username", "root");
-    arguments.addArgument("Password", "root");
+    arguments.addArgument("op_count", "100");
+    arguments.addArgument("database", "database");
     return arguments;
   }
 
@@ -33,23 +30,8 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 实际运行时每个线程仅执行一次，在测试方法运行前执行，类似于LoadRunner中的init方法
    */
   public void setupTest(JavaSamplerContext jsc){
-    url = Arrays.asList(jsc.getParameter("Url").split(","));
-    username = jsc.getParameter("Method");
-    username = jsc.getParameter("Username");
-    password = jsc.getParameter("Password");
-//    session = new Session.Builder()
-//        .nodeUrls(url)
-//        .username(username)
-//        .password(password)
-//        .enableRedirection(true)
-//        .version(Version.V_1_0)
-//        .build();
-//    // 打开 Session 连接
-//    try {
-//      session.open();
-//    } catch (Exception e) {
-//      e.printStackTrace();
-//    }
+    database = jsc.getParameter("database");
+    op_count = Integer.valueOf(jsc.getParameter("op_count"));
   }
 
   /**
@@ -58,18 +40,17 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public SampleResult runTest(JavaSamplerContext javaSamplerContext) {
     SampleResult results = new SampleResult();
-    results.setSamplerData(url+"\n"+ username +"\n"+ password);
-    results.setRequestHeaders(password);
-    //标记事务开始
+    results.setSamplerData(database + "\n"+ op_count);
+    // 标记事务开始
     results.sampleStart();
     try {
-      getNewLogger().info("hello world");
+      getNewLogger().info("parameters: {} {}", database, op_count);
       results.setSuccessful(true);
     } catch (Exception e) {
       results.setSuccessful(false);
       e.printStackTrace();
     }
-    //标记事务结束
+    // 标记事务结束
     results.sampleEnd();
     return results;
   }
@@ -78,12 +59,5 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 测试结束方法，结束测试中的每个线程
    * 实际运行时，每个线程仅执行一次，在测试方法运行结束后执行，类似于Loadrunner中的End方法
    */
-  public void teardownTest(JavaSamplerContext args) {
-    // 关闭 Session 连接
-//    try {
-//      session.close();
-//    } catch (Exception e) {
-//      e.printStackTrace();
-//    }
-  }
+  public void teardownTest(JavaSamplerContext args) {}
 }
