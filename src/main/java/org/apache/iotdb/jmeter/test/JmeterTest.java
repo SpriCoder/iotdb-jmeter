@@ -89,7 +89,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
       }
     }
     //标记事务结束
-    results.setResponseMessage(String.format("In this instance, database is %s, cost time is %ld, finished operation_num is %d", database, en-st, opsDone));
+    results.setResponseMessage("Database: " + database + "\n" + "Op Count: " + opcount);
     results.sampleEnd();
     return results;
   }
@@ -99,7 +99,6 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 实际运行时，每个线程仅执行一次，在测试方法运行结束后执行，类似于Loadrunner中的End方法
    */
   public void teardownTest(JavaSamplerContext args) {
-
-    System.out.println(String.format("In this instance, database is %s, cost time is %ld, finished operation_num is %d", database, en-st, opsDone));
+    // do nothing
   }
 }
