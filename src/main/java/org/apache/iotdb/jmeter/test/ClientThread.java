@@ -1,11 +1,6 @@
 package org.apache.iotdb.jmeter.test;
 
-import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
-
-import org.apache.iotdb.jmeter.test.IoTDBClient;
-import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
-import org.glassfish.jaxb.core.Utils;
 
 public class ClientThread implements Runnable{
     private final CountDownLatch _completeLatch;

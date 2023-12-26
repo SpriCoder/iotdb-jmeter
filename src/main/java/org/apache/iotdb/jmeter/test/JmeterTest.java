@@ -1,15 +1,11 @@
 package org.apache.iotdb.jmeter.test;
 
-import org.apache.iotdb.jmeter.test.TimestampGenerator;
-import org.apache.iotdb.isession.util.Version;
-import org.apache.iotdb.session.Session;
 import org.apache.jmeter.config.Arguments;
 import org.apache.jmeter.protocol.java.sampler.AbstractJavaSamplerClient;
 import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
 import org.apache.jmeter.samplers.SampleResult;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,17 +24,16 @@ public class JmeterTest extends AbstractJavaSamplerClient {
   private long runStartTime;
   private TimestampGenerator tt;
 
-  // /**
-  //  * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
-  //  * 此方法不用调用，是一个与生命周期相关的方法，类加载则运行。
-  //  */
-  // public Arguments getDefaultParameters() {
-  //   Arguments arguments = new Arguments();
-  //   arguments.addArgument("Url", "127.0.0.1:6667");
-  //   arguments.addArgument("Username", "root");
-  //   arguments.addArgument("Password", "root");
-  //   return arguments;
-  // }
+   /**
+    * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
+    * 此方法不用调用，是一个与生命周期相关的方法，类加载则运行。
+    */
+   public Arguments getDefaultParameters() {
+     Arguments arguments = new Arguments();
+     arguments.addArgument("op_count", "127.0.0.1:6667");
+     arguments.addArgument("database", "root");
+     return arguments;
+   }
 
   /**
    * 初始化方法，初始化性能测试时的每个线程
@@ -46,7 +41,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public void setupTest(JavaSamplerContext jsc){
     threadcount = 10;  // fixed
-    opcount = jsc.getIntParameter("opcount");  // adjustab e
+    opcount = jsc.getIntParameter("op_count");  // adjustab e
     database = jsc.getParameter("database");  // adjustable
     clientThreads = new ArrayList<ClientThread>(threadcount);
     completeLatch = new CountDownLatch(threadcount);
