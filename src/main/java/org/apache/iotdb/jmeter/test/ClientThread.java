@@ -13,13 +13,17 @@ public class ClientThread implements Runnable{
     private IoTDBClient _db;
     private int _opcount;
     private int _opsdone;
+    private long _runStartTime;
+    private TimestampGenerator _tt;
 
-    public ClientThread(String database, int opcount, CountDownLatch completeLatch) {
+    public ClientThread(String database, long runStartTime,int opcount, CountDownLatch completeLatch, TimestampGenerator tt) {
         _database = database;
         _db= new IoTDBClient();
+        _runStartTime = runStartTime;
         _opcount=opcount;
         _opsdone=0;
         _completeLatch=completeLatch;
+        _tt = tt;
     }    
 
     public int getOpsDone() {
@@ -28,7 +32,7 @@ public class ClientThread implements Runnable{
 
     @Override
     public void run() {
-        _db.init(_database);
+        _db.init(_database, _runStartTime, _tt);
 
         while ((_opcount == 0) || (_opsdone < _opcount)) {
             _db.insert();

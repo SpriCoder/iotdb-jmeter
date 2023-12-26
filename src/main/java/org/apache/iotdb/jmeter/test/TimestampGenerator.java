@@ -16,7 +16,7 @@ public class TimestampGenerator {
     lastTimestamp = currentTimestamp - getOffset(interval);
   }
 
-  public void initalizeTimestamp(final long intervalOffset) {
+  public synchronized void initalizeTimestamp(final long intervalOffset) {
     switch (timeUnits) {
     case NANOSECONDS:
       currentTimestamp = System.nanoTime() + getOffset(intervalOffset);
@@ -48,13 +48,13 @@ public class TimestampGenerator {
     }
   }
   
-  public Long nextValue() {
+  public synchronized Long nextValue() {
     lastTimestamp = currentTimestamp;
     currentTimestamp += getOffset(1);
     return currentTimestamp;
   }
 
-  public long getOffset(final long intervalOffset) {
+  public synchronized long getOffset(final long intervalOffset) {
     switch (timeUnits) {
     case NANOSECONDS:
     case MICROSECONDS:
@@ -72,11 +72,11 @@ public class TimestampGenerator {
     }
   }
 
-  public Long lastValue() {
+  public synchronized Long lastValue() {
     return lastTimestamp;
   }
 
-  public long currentValue() {
+  public synchronized long currentValue() {
     return currentTimestamp;
   }
 

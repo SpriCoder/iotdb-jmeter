@@ -1,5 +1,6 @@
 package org.apache.iotdb.jmeter.test;
 
+import org.apache.iotdb.jmeter.test.TimestampGenerator;
 import org.apache.iotdb.isession.util.Version;
 import org.apache.iotdb.session.Session;
 import org.apache.jmeter.config.Arguments;
@@ -13,14 +14,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class JmeterTest extends AbstractJavaSamplerClient {
-  private List<String> url;
-  private int threadcount = 10;
+  private int threadcount;  
   private int opcount;
   private String database;
   private List<ClientThread> clientThreads;
   private CountDownLatch completeLatch;
+  private long st;
+  private long en;
+  private int opsDone;
+  private long runStartTime;
+  private TimestampGenerator tt;
 
   // /**
   //  * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
@@ -39,12 +45,14 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 实际运行时每个线程仅执行一次，在测试方法运行前执行，类似于LoadRunner中的init方法
    */
   public void setupTest(JavaSamplerContext jsc){
-    // url = Arrays.asList(jsc.getParameter("Url").split(","));
-    opcount = jsc.getIntParameter("opcount");
-    database = jsc.getParameter("database");
+    threadcount = 10;  // fixed
+    opcount = jsc.getIntParameter("opcount");  // adjustab e
+    database = jsc.getParameter("database");  // adjustable
     clientThreads = new ArrayList<ClientThread>(threadcount);
     completeLatch = new CountDownLatch(threadcount);
-
+    opsDone = 0;
+    runStartTime = System.currentTimeMillis();
+    tt = new TimestampGenerator(100,TimeUnit.MILLISECONDS, System.currentTimeMillis());
   }
 
   /**
@@ -58,31 +66,25 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     //标记事务开始
     results.sampleStart();
     try {
+      int threadopcount = opcount / threadcount;
       for (int threadid = 0; threadid < threadcount; threadid++) {
-        int threadopcount = opcount / threadcount;
-        // ensure correct number of operations, in case opcount is not a multiple of threadcount
-        if (threadid<opcount%threadcount) {
-          ++threadopcount;
-        }
-        ClientThread t = new ClientThread(database, threadopcount, completeLatch);
+        ClientThread t = new ClientThread(database, runStartTime, threadopcount, completeLatch, tt);
         clientThreads.add(t);
       }
 
-      // long st, en;
-      // int opsDone = 0;
       final Map<Thread, ClientThread> threads = new HashMap<Thread, ClientThread>(threadcount);
       for (ClientThread client : clientThreads) {
         threads.put(new Thread(client, "ClientThread"), client);
       }
-      // st = System.currentTimeMillis();
+      st = System.currentTimeMillis();
       for (Thread t : threads.keySet()) {
         t.start();
       }
       for (Map.Entry<Thread, ClientThread> entry : threads.entrySet()) {
         entry.getKey().join();
-        // opsDone += entry.getValue().getOpsDone();
+        opsDone += entry.getValue().getOpsDone();
       }
-      // en=System.currentTimeMillis();
+      en=System.currentTimeMillis();
       results.setSuccessful(true);
     } catch (Exception e) {
       results.setSuccessful(false);
@@ -98,6 +100,6 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 实际运行时，每个线程仅执行一次，在测试方法运行结束后执行，类似于Loadrunner中的End方法
    */
   public void teardownTest(JavaSamplerContext args) {
-    System.out.println("over");
+    System.out.println(String.format("In this instance, database is %s, cost time is %ld, finished operation_num is %d", database, en-st, opsDone));
   }
 }
