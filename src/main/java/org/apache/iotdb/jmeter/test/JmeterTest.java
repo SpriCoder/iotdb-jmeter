@@ -31,7 +31,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public void setupTest(JavaSamplerContext jsc){
     database = jsc.getParameter("database");
-    op_count = Integer.valueOf(jsc.getParameter("op_count"));
+    op_count = Integer.parseInt(jsc.getParameter("op_count"));
   }
 
   /**
