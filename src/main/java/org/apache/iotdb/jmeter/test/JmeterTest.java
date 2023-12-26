@@ -58,7 +58,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     SampleResult results = new SampleResult();
     results.setSamplerData(database + "\n" + opcount);
     results.setRequestHeaders(database);
-    //标记事务开始
+    // 标记事务开始
     results.sampleStart();
     final Map<Thread, ClientThread> threads = new HashMap<Thread, ClientThread>(threadcount);
     try {
@@ -83,13 +83,13 @@ public class JmeterTest extends AbstractJavaSamplerClient {
       results.setSuccessful(true);
     } catch (Exception e) {
       results.setSuccessful(false);
-      e.printStackTrace();
+      getNewLogger().error("Unexpected error", e);
       for (Map.Entry<Thread, ClientThread> entry : threads.entrySet()) {
         entry.getKey().interrupt();
       }
     }
-    //标记事务结束
-    results.setResponseMessage("Database: " + database + "\n" + "Op Count: " + opcount);
+    // 标记事务结束
+    results.setResponseMessage("Database: " + database + "\n" + "Operation Done: " + opsDone + "\n" + "Test Time: " + (en-st));
     results.sampleEnd();
     return results;
   }

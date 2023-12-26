@@ -16,38 +16,6 @@ public class TimestampGenerator {
     lastTimestamp = currentTimestamp - getOffset(interval);
   }
 
-  public synchronized void initalizeTimestamp(final long intervalOffset) {
-    switch (timeUnits) {
-      case NANOSECONDS:
-        currentTimestamp = System.nanoTime() + getOffset(intervalOffset);
-        break;
-      case MICROSECONDS:
-        currentTimestamp = (System.nanoTime() / 1000) + getOffset(intervalOffset);
-        break;
-      case MILLISECONDS:
-        currentTimestamp = System.currentTimeMillis() + getOffset(intervalOffset);
-        break;
-      case SECONDS:
-        currentTimestamp = (System.currentTimeMillis() / 1000) +
-            getOffset(intervalOffset);
-        break;
-      case MINUTES:
-        currentTimestamp = (System.currentTimeMillis() / 1000) +
-            getOffset(intervalOffset);
-        break;
-      case HOURS:
-        currentTimestamp = (System.currentTimeMillis() / 1000) +
-            getOffset(intervalOffset);
-        break;
-      case DAYS:
-        currentTimestamp = (System.currentTimeMillis() / 1000) +
-            getOffset(intervalOffset);
-        break;
-      default:
-        throw new IllegalArgumentException("Unhandled time unit type: " + timeUnits);
-    }
-  }
-
   public synchronized Long nextValue() {
     lastTimestamp = currentTimestamp;
     currentTimestamp += getOffset(1);

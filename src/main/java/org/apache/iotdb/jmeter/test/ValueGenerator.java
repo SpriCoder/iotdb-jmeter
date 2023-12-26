@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.util.Random;
 
 public class ValueGenerator {
+  private final Random random = new Random();
   private final String[] devices = {
       "cent_9_Humidity",
       "side_8_Humidity",
@@ -169,10 +170,7 @@ public class ValueGenerator {
   };
 
   public String get_device() {
-    Random random = new Random();
-    int randomNumber = random.nextInt(160);
-    String device = devices[randomNumber];
-    return device;
+    return devices[random.nextInt(160)];
   }
 
   public String get_value(String key) {
@@ -183,10 +181,9 @@ public class ValueGenerator {
       iotParameter = key.split(":")[1];
     } else
       iotParameter = key;
-    Random r = new Random();
     StringBuilder sb = new StringBuilder(size);
     sb.append(iotParameter);
-    BigDecimal val = BigDecimal.valueOf(r.nextDouble()).setScale(4, RoundingMode.HALF_UP);
+    BigDecimal val = BigDecimal.valueOf(random.nextDouble()).setScale(4, RoundingMode.HALF_UP);
     while (sb.length() < size) {
       sb.append(':');
       sb.append(iotParameter);

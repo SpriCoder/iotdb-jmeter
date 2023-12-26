@@ -56,9 +56,7 @@ public class IoTDBClient {
         cacheData = new HashMap<>();
       }
     } catch (IoTDBConnectionException e) {
-      System.err.printf("start session(%s:%s) failed:%s%n", db_host, db_port, e);
-      e.printStackTrace();
-      // throw new DBException(e);
+      logger.error("start session({}:{}) failed:", db_host, db_port, e);
     }
   }
 
@@ -80,7 +78,7 @@ public class IoTDBClient {
         session.insertTablets(tablets);
       }
     } catch (IoTDBConnectionException | StatementExecutionException | IOException e) {
-      e.printStackTrace();
+      logger.error("insert({}:{}) failed:", db_host, db_port, e);
       return -1;
     }
     return 1;
@@ -103,50 +101,6 @@ public class IoTDBClient {
     return tabletsMap;
   }
 
-  public int scan() {
-    long oldTimeStamp;
-    long newTimeStamp = tt.lastValue() - 5000;
-    String device_id = String.format("root.%s.%s", database_id, vg.get_device());
-    int s1 = scanHelper(device_id, newTimeStamp);
-    if (runStartTime > 0L) {
-      long time = newTimeStamp - runStartTime;
-      oldTimeStamp = newTimeStamp - time;
-    } else {
-      oldTimeStamp = newTimeStamp - 1800000L;  // 30 minutes before
-    }
-    long timestampVal = oldTimeStamp + (long) (Math.random() * (newTimeStamp - 10000L - oldTimeStamp));
-    int s2 = scanHelper(device_id, timestampVal);
-    if (s1 == 1 && s2 == 1) {
-      return 1;
-    }
-    return -1;
-  }
-
-  private int scanHelper(String deviceID, long timestamp) {
-    long startTime = timestamp;
-    long endTime = timestamp + 5000L;  // The time span is five seconds
-    try {
-      SessionDataSet dataSet = session.executeRawDataQuery(Collections.singletonList(deviceID), startTime, endTime);  //  executing a query device by device
-      dataSet.setFetchSize(FETCH_SIZE);
-      while (dataSet.hasNext()) {
-        RowRecord record = dataSet.next();  // get one line data, usually is one column for timestamp and several columns for sensor-value.
-        System.out.printf("scan results from server succeed for deviceID %s from %s to %s%n",
-            deviceID, transferLongToDate(startTime), transferLongToDate(endTime));
-      }
-      dataSet.closeOperationHandle();
-    } catch (IoTDBConnectionException | StatementExecutionException e) {
-      e.printStackTrace();
-      return -1;
-    }
-    return 1;
-  }
-
-  private String transferLongToDate(Long millSec) {
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    Date date = new Date(millSec);
-    return sdf.format(date);
-  }
-
   public void cleanup() {
     try {
       if (!cacheData.isEmpty()) {
@@ -157,9 +111,7 @@ public class IoTDBClient {
       session.close();
       session = null;
     } catch (IoTDBConnectionException | StatementExecutionException e) {
-      System.err.printf("cleanup session(%s:%s) failed:%s%n", db_host, db_port, e);
-      e.printStackTrace();
-      // throw new DBException();
+      logger.error("cleanup session({}:{}) failed:", db_host, db_port, e);
     }
   }
 }
