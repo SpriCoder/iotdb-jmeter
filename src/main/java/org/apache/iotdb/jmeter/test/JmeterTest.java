@@ -60,6 +60,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     results.setRequestHeaders(database);
     //标记事务开始
     results.sampleStart();
+    final Map<Thread, ClientThread> threads = new HashMap<Thread, ClientThread>(threadcount);
     try {
       int threadopcount = opcount / threadcount;
       for (int threadid = 0; threadid < threadcount; threadid++) {
@@ -67,7 +68,6 @@ public class JmeterTest extends AbstractJavaSamplerClient {
         clientThreads.add(t);
       }
 
-      final Map<Thread, ClientThread> threads = new HashMap<Thread, ClientThread>(threadcount);
       for (ClientThread client : clientThreads) {
         threads.put(new Thread(client, "ClientThread"), client);
       }
@@ -84,6 +84,9 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     } catch (Exception e) {
       results.setSuccessful(false);
       e.printStackTrace();
+      for (Map.Entry<Thread, ClientThread> entry : threads.entrySet()) {
+        entry.getKey().interrupt();
+      }
     }
     //标记事务结束
     results.setResponseMessage(String.format("In this instance, database is %s, cost time is %ld, finished operation_num is %d", database, en-st, opsDone));
@@ -96,6 +99,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 实际运行时，每个线程仅执行一次，在测试方法运行结束后执行，类似于Loadrunner中的End方法
    */
   public void teardownTest(JavaSamplerContext args) {
+
     System.out.println(String.format("In this instance, database is %s, cost time is %ld, finished operation_num is %d", database, en-st, opsDone));
   }
 }
