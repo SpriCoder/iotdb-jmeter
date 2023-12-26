@@ -1,5 +1,7 @@
 package org.apache.iotdb.jmeter.test;
 
+import org.slf4j.Logger;
+
 import java.util.concurrent.CountDownLatch;
 
 public class ClientThread implements Runnable{
@@ -10,8 +12,9 @@ public class ClientThread implements Runnable{
     private int _opsdone;
     private long _runStartTime;
     private TimestampGenerator _tt;
+    private Logger _logger;
 
-    public ClientThread(String database, long runStartTime,int opcount, CountDownLatch completeLatch, TimestampGenerator tt) {
+    public ClientThread(String database, long runStartTime, int opcount, CountDownLatch completeLatch, TimestampGenerator tt, Logger logger) {
         _database = database;
         _db= new IoTDBClient();
         _runStartTime = runStartTime;
@@ -19,6 +22,7 @@ public class ClientThread implements Runnable{
         _opsdone=0;
         _completeLatch=completeLatch;
         _tt = tt;
+        _logger= logger;
     }    
 
     public int getOpsDone() {
@@ -31,6 +35,10 @@ public class ClientThread implements Runnable{
 
         while ((_opcount == 0) || (_opsdone < _opcount)) {
             _db.insert();
+            if (_opsdone / 500000 > 0 && _opsdone % 500000 == 0) {
+                _logger.info("Thread " + Thread.currentThread().getId() +
+                    " inserted " + _opsdone * 100.0 / _opcount + "% records");
+            }
             _opsdone++;
         }
         _db.cleanup();

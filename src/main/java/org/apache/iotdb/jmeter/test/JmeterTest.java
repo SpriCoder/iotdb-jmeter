@@ -63,7 +63,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     try {
       int threadopcount = opcount / threadcount;
       for (int threadid = 0; threadid < threadcount; threadid++) {
-        ClientThread t = new ClientThread(database, runStartTime, threadopcount, completeLatch, tt);
+        ClientThread t = new ClientThread(database, runStartTime, threadopcount, completeLatch, tt, getNewLogger());
         clientThreads.add(t);
       }
 
