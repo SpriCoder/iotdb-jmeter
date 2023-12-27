@@ -84,9 +84,10 @@ public class IoTDBClient {
     return 1;
   }
 
+  private final List<MeasurementSchema> schemaList = Collections.singletonList(
+      new MeasurementSchema("field0", TSDataType.TEXT));
+
   private Map<String, Tablet> generateTablets() {
-    List<MeasurementSchema> schemaList = Collections.singletonList(
-        new MeasurementSchema("field0", TSDataType.TEXT));
     Map<String, Tablet> tabletsMap = new HashMap<>();
     for (Map.Entry<String, List<Pair<Long, Pair<String, byte[]>>>> entry : cacheData.entrySet()) {  // create a tablet for each device
       List<Pair<Long, Pair<String, byte[]>>> TVList = entry.getValue();  // TVList是<timestamp, <measurement_id, value>>的三元组构成的list

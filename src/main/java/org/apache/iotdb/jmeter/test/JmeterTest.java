@@ -13,16 +13,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class JmeterTest extends AbstractJavaSamplerClient {
-  private int threadcount;
-  private int opcount;
-  private String database;
-  private List<ClientThread> clientThreads;
-  private CountDownLatch completeLatch;
   private long st;
   private long en;
+  private int threadcount;
   private int opsDone;
+  private int opcount;
   private long runStartTime;
+  private String database;
+  private List<ClientThread> clientThreads;
   private TimestampGenerator tt;
+  private CountDownLatch completeLatch;
 
   /**
    * 这个方法用来控制显示在GUI页面的属性，由用户来进行设置。
@@ -40,14 +40,14 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    * 实际运行时每个线程仅执行一次，在测试方法运行前执行，类似于LoadRunner中的init方法
    */
   public void setupTest(JavaSamplerContext jsc) {
-    threadcount = 10;  // fixed
-    opcount = jsc.getIntParameter("op_count");  // adjustab e
-    database = jsc.getParameter("database");  // adjustable
-    clientThreads = new ArrayList<ClientThread>(threadcount);
+    threadcount = 10;
+    opcount = jsc.getIntParameter("op_count");
+    database = jsc.getParameter("database");
+    clientThreads = new ArrayList<>(threadcount);
     completeLatch = new CountDownLatch(threadcount);
     opsDone = 0;
     runStartTime = System.currentTimeMillis();
-    tt = new TimestampGenerator(100, TimeUnit.MILLISECONDS, System.currentTimeMillis());
+    tt = new TimestampGenerator(TimeUnit.MILLISECONDS, System.currentTimeMillis());
   }
 
   /**
@@ -60,11 +60,11 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     results.setRequestHeaders(database);
     // 标记事务开始
     results.sampleStart();
-    final Map<Thread, ClientThread> threads = new HashMap<Thread, ClientThread>(threadcount);
+    final Map<Thread, ClientThread> threads = new HashMap<>(threadcount);
     try {
-      int threadopcount = opcount / threadcount;
+      int thread_op_count = opcount / threadcount;
       for (int threadid = 0; threadid < threadcount; threadid++) {
-        ClientThread t = new ClientThread(database, runStartTime, threadopcount, completeLatch, tt, getNewLogger());
+        ClientThread t = new ClientThread(database, runStartTime, thread_op_count, completeLatch, tt, getNewLogger());
         clientThreads.add(t);
       }
 

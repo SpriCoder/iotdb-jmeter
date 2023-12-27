@@ -1,28 +1,27 @@
 package org.apache.iotdb.jmeter.test;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class TimestampGenerator {
-  private long currentTimestamp;
-  private long lastTimestamp;
+  private AtomicLong currentTimestamp;
   private final long interval;
+  private final long valueInterval;
   private final TimeUnit timeUnits;
 
 
-  public TimestampGenerator(final long interval, final TimeUnit timeUnits, final long startTimestamp) {
-    this.interval = interval;
+  public TimestampGenerator(final TimeUnit timeUnits, final long startTimestamp) {
+    this.interval = 100;
     this.timeUnits = timeUnits;
-    this.currentTimestamp = startTimestamp - getOffset(interval);
-    lastTimestamp = currentTimestamp - getOffset(interval);
+    this.valueInterval = getOffset(1);
+    this.currentTimestamp = new AtomicLong(startTimestamp - getOffset(interval));
   }
 
-  public synchronized Long nextValue() {
-    lastTimestamp = currentTimestamp;
-    currentTimestamp += getOffset(1);
-    return currentTimestamp;
+  public Long nextValue() {
+    return this.currentTimestamp.addAndGet(valueInterval);
   }
 
-  public synchronized long getOffset(final long intervalOffset) {
+  public long getOffset(final long intervalOffset) {
     switch (timeUnits) {
       case NANOSECONDS:
       case MICROSECONDS:
@@ -38,14 +37,6 @@ public class TimestampGenerator {
       default:
         throw new IllegalArgumentException("Unhandled time unit type: " + timeUnits);
     }
-  }
-
-  public synchronized Long lastValue() {
-    return lastTimestamp;
-  }
-
-  public synchronized long currentValue() {
-    return currentTimestamp;
   }
 
 }
