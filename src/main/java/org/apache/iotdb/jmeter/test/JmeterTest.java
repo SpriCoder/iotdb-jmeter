@@ -30,7 +30,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public Arguments getDefaultParameters() {
     Arguments arguments = new Arguments();
-    arguments.addArgument("op_count", "127.0.0.1:6667");
+    arguments.addArgument("opcount", "127.0.0.1:6667");
     arguments.addArgument("database", "root");
     return arguments;
   }
@@ -41,7 +41,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
    */
   public void setupTest(JavaSamplerContext jsc) {
     threadcount = 10;  // fixed
-    opcount = jsc.getIntParameter("op_count");  // adjustab e
+    opcount = jsc.getIntParameter("opcount");  // adjustabe
     database = jsc.getParameter("database");  // adjustable
     clientThreads = new ArrayList<ClientThread>(threadcount);
     completeLatch = new CountDownLatch(threadcount);
