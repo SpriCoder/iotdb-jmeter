@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="IoTDB 树模型写入" enabled="true">
+      <stringProp name="TestPlan.comments">默认每线程一个样本，写入失败停止该线程；持续压测设置 -Jloops=-1 -Jduration=300。密码读取 IOTDB_PASSWORD 环境变量，也可显式设置 -Jpassword。启动参数应设置 -Jsampleresult.timestamp.start=true 和 -Jsample_variables=iotdb_ack_rows,iotdb_ack_points,iotdb_attempted_rows,iotdb_device,iotdb_first_timestamp,iotdb_last_timestamp，以保存开始时间和确认计数。时间单位为毫秒。</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="用户定义变量" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath"/>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="IoTDB 写入线程" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="循环控制器" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">${__P(loops,1)}</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,1)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(ramp_up,1)}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${__P(duration,60)}</stringProp>
+        <stringProp name="ThreadGroup.delay">${__P(delay,0)}</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <JavaSampler guiclass="JavaTestSamplerGui" testclass="JavaSampler" testname="IoTDB write" enabled="true">
+          <elementProp name="arguments" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="写入参数" enabled="true">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="host" elementType="Argument">
+                <stringProp name="Argument.name">host</stringProp>
+                <stringProp name="Argument.value">${__P(host,127.0.0.1)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="port" elementType="Argument">
+                <stringProp name="Argument.name">port</stringProp>
+                <stringProp name="Argument.value">${__P(port,6667)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="username" elementType="Argument">
+                <stringProp name="Argument.name">username</stringProp>
+                <stringProp name="Argument.value">${__P(username,root)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="password" elementType="Argument">
+                <stringProp name="Argument.name">password</stringProp>
+                <stringProp name="Argument.value">${__P(password,)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="device_path" elementType="Argument">
+                <stringProp name="Argument.name">device_path</stringProp>
+                <stringProp name="Argument.value">${__P(device_path,root.jmeter.device)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="device_per_thread" elementType="Argument">
+                <stringProp name="Argument.name">device_per_thread</stringProp>
+                <stringProp name="Argument.value">${__P(device_per_thread,true)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="run_id" elementType="Argument">
+                <stringProp name="Argument.name">run_id</stringProp>
+                <stringProp name="Argument.value">${__P(run_id,)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="measurements" elementType="Argument">
+                <stringProp name="Argument.name">measurements</stringProp>
+                <stringProp name="Argument.value">${__P(measurements,s0)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="data_types" elementType="Argument">
+                <stringProp name="Argument.name">data_types</stringProp>
+                <stringProp name="Argument.value">${__P(data_types,INT64)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="op_count" elementType="Argument">
+                <stringProp name="Argument.name">op_count</stringProp>
+                <stringProp name="Argument.value">${__P(op_count,100)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="batch_size" elementType="Argument">
+                <stringProp name="Argument.name">batch_size</stringProp>
+                <stringProp name="Argument.value">${__P(batch_size,100)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="start_timestamp" elementType="Argument">
+                <stringProp name="Argument.name">start_timestamp</stringProp>
+                <stringProp name="Argument.value">${__P(start_timestamp,-1)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="timestamp_step_ms" elementType="Argument">
+                <stringProp name="Argument.name">timestamp_step_ms</stringProp>
+                <stringProp name="Argument.value">${__P(timestamp_step_ms,1)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="value_start" elementType="Argument">
+                <stringProp name="Argument.name">value_start</stringProp>
+                <stringProp name="Argument.value">${__P(value_start,0)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="value_step" elementType="Argument">
+                <stringProp name="Argument.name">value_step</stringProp>
+                <stringProp name="Argument.value">${__P(value_step,1)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="aligned" elementType="Argument">
+                <stringProp name="Argument.name">aligned</stringProp>
+                <stringProp name="Argument.value">${__P(aligned,false)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="prepare_schema" elementType="Argument">
+                <stringProp name="Argument.name">prepare_schema</stringProp>
+                <stringProp name="Argument.value">${__P(prepare_schema,true)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="stop_on_error" elementType="Argument">
+                <stringProp name="Argument.name">stop_on_error</stringProp>
+                <stringProp name="Argument.value">${__P(stop_on_error,true)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="connection_timeout_ms" elementType="Argument">
+                <stringProp name="Argument.name">connection_timeout_ms</stringProp>
+                <stringProp name="Argument.value">${__P(connection_timeout_ms,5000)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="query_timeout_ms" elementType="Argument">
+                <stringProp name="Argument.name">query_timeout_ms</stringProp>
+                <stringProp name="Argument.value">${__P(query_timeout_ms,60000)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="rpc_compression" elementType="Argument">
+                <stringProp name="Argument.name">rpc_compression</stringProp>
+                <stringProp name="Argument.value">${__P(rpc_compression,false)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <stringProp name="classname">org.apache.iotdb.jmeter.test.JmeterTest</stringProp>
+        </JavaSampler>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
