@@ -122,6 +122,15 @@ final class SessionWriteClient implements WriteClient {
   }
 
   @Override
+  public void requireEmpty(String device) throws Exception {
+    try (SessionDataSet data = session.executeQueryStatement("SELECT * FROM " + device + " LIMIT 1")) {
+      if (data.hasNext()) {
+        throw new IllegalArgumentException("Run namespace contains data; choose a new run_id");
+      }
+    }
+  }
+
+  @Override
   public void insert(Tablet tablet, boolean aligned) throws Exception {
     if (aligned) {
       session.insertAlignedTablet(tablet, true);

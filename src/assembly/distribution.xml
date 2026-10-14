@@ -24,6 +24,8 @@
                 <include>docs/**</include>
                 <include>scripts/install-plugin.ps1</include>
                 <include>scripts/summarize_results.py</include>
+                <include>scripts/generate_fixed_workload_plan.py</include>
+                <include>scripts/validate_fixed_workload.py</include>
             </includes>
             <fileMode>0644</fileMode>
         </fileSet>

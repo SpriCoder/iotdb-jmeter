@@ -308,6 +308,7 @@ public class JmeterTestTest {
       if (failOpen) { throw new Exception("simulated connect failure"); }
     }
     @Override public void prepare(WriteConfig config, String device) { prepares++; this.device = device; }
+    @Override public void requireEmpty(String device) { }
     @Override public void insert(Tablet tablet, boolean aligned) throws Exception {
       this.aligned = aligned;
       inserts++;

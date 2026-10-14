@@ -6,6 +6,7 @@ import org.apache.tsfile.write.record.Tablet;
 interface WriteClient {
   void open(WriteConfig config) throws Exception;
   void prepare(WriteConfig config, String device) throws Exception;
+  void requireEmpty(String device) throws Exception;
   void insert(Tablet tablet, boolean aligned) throws Exception;
   void close() throws Exception;
 }
