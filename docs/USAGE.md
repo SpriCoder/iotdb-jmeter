@@ -2,11 +2,11 @@
 
 ## 适用范围与准备
 
-本插件测试 IoTDB **树模型 Session RPC** 写入，使用 `insertTablet` 或 `insertAlignedTablet`。`device_path` 是 `root` 开头的设备路径；不支持把表模型的数据库名、表名、标签列或 SQL 端口作为本插件的写入配置。
+本插件支持 IoTDB/TimechoDB **树模型 Session RPC** 和 **表模型 TableSession** 写入。树模型使用 `insertTablet`/`insertAlignedTablet`；表模型使用 TAG 列标识逻辑数据源、FIELD 列承载测点，通过 `TableSession.insert(Tablet)` 批量写入。
 
-推荐环境为 JDK 17、Maven 3.8+、Apache JMeter 5.6.3。代码以 Java 8 为编译目标，客户端依赖为 IoTDB Session 2.0.6，正式受测服务端固定为 Apache IoTDB 2.0.6。时间精度必须是 `ms`；插件在建立连接后检查该精度。确认 DataNode RPC 地址可达、测试账号有建模和写入权限，并为测试分配独立路径。
+推荐环境为 JDK 17、Maven 3.8+、Apache JMeter 5.6.3。代码以 Java 8 为编译目标，客户端依赖为 IoTDB Session 2.0.6。时间精度必须是 `ms`；插件在建立连接后检查该精度。确认 RPC 地址可达、测试账号有建模和写入权限，并为测试分配独立路径或专用表。
 
-本插件只负责树模型 `insertTablet`/`insertAlignedTablet` 写入负载。它不提供跨 JMeter 进程的同步起跑、逐源每 10 秒连续性判定或最终数据库一致性结论；这些由 TC-01 的测试计划和独立核对脚本完成。历史 IoTDB 1.3.4 预检日志不得与 2.0.6 JMeter 结果合并。
+固定工作量计划只支持单个 JMeter 进程内同步起跑。它不提供跨进程同步、长期稳定性结论或全量逐点值验证；这些由 TC-01 的计划和独立核对脚本补充。历史 IoTDB 1.3.4 预检日志不得与 2.0.6 JMeter 结果合并。
 
 ## 构建与安装
 
@@ -111,10 +111,15 @@ New-Item -ItemType Directory -Path $resultDir | Out-Null
 
 | 参数 | 默认值 | 作用 |
 | --- | --- | --- |
-| `host` | `127.0.0.1` | DataNode 树模型 RPC 主机 |
+| `model` | `tree` | `tree` 或 `table` |
+| `host` | `127.0.0.1` | DataNode RPC 主机 |
 | `port` | `6667` | RPC 端口，范围 1–65535 |
 | `username` | `root` | IoTDB 用户名 |
 | `password` | 空 | 显式密码；空时读取 `IOTDB_PASSWORD` |
+| `database` | 空 | 表模型数据库名；表模式必填。树模式仅为旧计划兼容项 |
+| `table_name` | `jmeter_data` | 表模型目标表 |
+| `source_column` | `device_id` | 表模型 STRING TAG 源标识列 |
+| `source_id` | `jmeter_source` | 表模型源标识前缀，自动附加 run/thread 标识 |
 | `device_path` | `root.jmeter.device` | 基础设备路径 |
 | `device_per_thread` | `true` | 为采样器追加独立设备后缀 |
 | `run_id` | 空 | 空时使用本 JVM 自动生成的 UUID 十六进制标识 |
@@ -126,18 +131,18 @@ New-Item -ItemType Directory -Path $resultDir | Out-Null
 | `timestamp_step_ms` | `1` | 相邻行时间戳间隔，正整数，毫秒 |
 | `value_start` | `0` | 生成值的起点 |
 | `value_step` | `1` | 每推进一行的值增量 |
-| `aligned` | `false` | 是否写入对齐序列 |
+| `aligned` | `false` | 树模型是否写入对齐序列；表模型不支持对齐序列 |
 | `prepare_schema` | `true` | 在采样计时前检查/创建模式，验证类型和对齐方式 |
 | `stop_on_error` | `true` | 写入失败后停止该线程；`false` 允许后续样本继续，初始化失败仍停止 |
 | `connection_timeout_ms` | `5000` | 连接超时，毫秒 |
 | `query_timeout_ms` | `60000` | 模式查询等查询的超时，毫秒；不表示整个测试的时限 |
 | `rpc_compression` | `false` | 是否启用 RPC 压缩 |
 
-旧计划中，`device_path` 缺省或为空时接受 `database` 别名；`measurements` 缺省或为空时接受单测点的 `measurement` 别名。`database` 在这里仍代表完整设备路径。新计划请使用 `device_path` 和 `measurements`。
+树模型使用 `device_path`；旧计划中该参数缺省时接受 `database` 作为设备路径别名。表模型使用 `database`、`table_name`、`source_column` 和 `source_id`。两种模式的 `measurements` / `data_types` 用法相同。
 
 设备路径的每个节点、测点名须为字母或下划线开头、后续只含字母数字下划线的简单标识符，不能含通配符；测点名不能重复。多个测点必须显式给出同样数量的数据类型，例如 `s0,s1` 对应 `INT64,INT64`，单个默认类型不会自动复制。
 
-TC-01 使用 10 个 `INT64` 测点时，保持 `op_count=100`、`batch_size=100`，一次 JMeter 样本调用一次 Tablet 写入；成功确认 100 行，即 1,000 个点。具体的 500 源、共同 600 秒测量窗口及启动参数按报告执行说明配置。
+TC-01 使用 10 个 `INT64` 测点时，保持 `op_count=100`、`batch_size=100`，一次 JMeter 样本调用一次 Tablet 写入；成功确认 100 行，即 1,000 个 FIELD 点，TAG 和时间列不计入测点数。固定工作量为 500 源、12 亿点，判据及共同计时见 [FIXED-WORKLOAD.md](FIXED-WORKLOAD.md)。
 
 ### 设备与时间戳
 

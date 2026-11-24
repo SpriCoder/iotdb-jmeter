@@ -23,7 +23,9 @@ TARGET_POINTS_PER_SECOND = 20_000_000
 
 def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
              batches_per_source=2400, functional_only=False, readback=None,
-             device_path="root.jmeter.fixed"):
+             device_path="root.jmeter.fixed", model="tree", database="",
+             table_name="jmeter_fixed", source_column="device_id",
+             source_id="jmeter_fixed_source"):
     dimensions = (workers, sources_per_worker, batches_per_source)
     if any(type(value) is not int or value <= 0 for value in dimensions):
         raise ValueError("Workload dimensions must be positive integers")
@@ -33,8 +35,17 @@ def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
         raise ValueError("Functional dimensions must not exceed 10/50/2400")
     if run_id is not None and not re.fullmatch(r"[A-Za-z0-9_]+", run_id):
         raise ValueError("run_id must be a simple identifier")
-    if not re.fullmatch(r"root(?:\.[A-Za-z_][A-Za-z0-9_]*)+", device_path):
-        raise ValueError("device_path must be a root path with simple identifier nodes")
+    if model not in {"tree", "table"}:
+        raise ValueError("model must be tree or table")
+    if model == "tree":
+        if not re.fullmatch(r"root(?:\.[A-Za-z_][A-Za-z0-9_]*)+", device_path):
+            raise ValueError("device_path must be a root path with simple identifier nodes")
+    else:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database):
+            raise ValueError("table model requires database as a simple identifier")
+        for name, value in (("table_name", table_name), ("source_column", source_column), ("source_id", source_id)):
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+                raise ValueError("{} must be a simple identifier".format(name))
     resolved = [Path(path).resolve() for path in paths]
     if not resolved or len(set(resolved)) != len(resolved):
         raise ValueError("Supply distinct JTL files once, in per-worker record order")
@@ -126,7 +137,8 @@ def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
                     fail(f"{where}: thread owns multiple workers")
                 owners[thread] = worker
                 state["thread"] = thread
-                prefix = f"{device_path}.run_{run_id}.worker_{worker}"
+                prefix = (f"{device_path}.run_{run_id}.worker_{worker}" if model == "tree"
+                          else f"{source_id}_run_{run_id}_worker_{worker}")
                 if phase == "prepare":
                     state["prepare"] += 1
                     if state["prepare"] != 1 or state["formal"]:
@@ -152,9 +164,12 @@ def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
                 expected_source = state["formal"] % sources_per_worker
                 state["formal"] += 1
                 device = row["iotdb_device"]
-                if device != f"{prefix}.source_{expected_source}":
+                source_suffix = f".source_{expected_source}" if model == "tree" else f"_source_{expected_source}"
+                if device != f"{prefix}{source_suffix}":
                     fail(f"{where}: device or round-robin source order mismatch")
-                match = re.fullmatch(re.escape(prefix) + r"\.source_(\d+)", device)
+                source_pattern = (re.escape(prefix) + r"\.source_(\d+)" if model == "tree"
+                                  else re.escape(prefix) + r"_source_(\d+)")
+                match = re.fullmatch(source_pattern, device)
                 if match is None or int(match.group(1)) >= sources_per_worker:
                     fail(f"{where}: unexpected source path")
                     continue
@@ -204,7 +219,8 @@ def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
     source_results = {}
     for worker in range(workers):
         for ordinal in range(sources_per_worker):
-            device = f"{device_path}.run_{run_id}.worker_{worker}.source_{ordinal}"
+            device = (f"{device_path}.run_{run_id}.worker_{worker}.source_{ordinal}" if model == "tree"
+                      else f"{source_id}_run_{run_id}_worker_{worker}_source_{ordinal}")
             source = sources.get(device)
             if source is None:
                 fail(f"{device}: missing source")
@@ -246,6 +262,10 @@ def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
                 and result["verified_devices"] == workers * sources_per_worker
                 and type(result.get("verified_points")) is int
                 and result["verified_points"] == expected_points)
+            if model == "table":
+                readback_passed = readback_passed and all(result.get(key) == value for key, value in (
+                    ("model", model), ("database", database), ("table_name", table_name),
+                    ("source_column", source_column)))
         except (OSError, ValueError, AttributeError) as exc:
             fail(f"Cannot read database verification: {exc}")
         if not readback_passed:
@@ -258,7 +278,11 @@ def validate(paths, *, run_id=None, workers=10, sources_per_worker=50,
         status = "PASS" if readback_passed else "WRITE_COMPLETE_REQUIRES_READBACK"
     return {
         "status": status, "performance_acceptance": status == "PASS",
-        "functional_only": functional_only, "run_id": run_id, "device_path": device_path,
+        "functional_only": functional_only, "run_id": run_id, "model": model,
+        "device_path": device_path, "database": database if model == "table" else None,
+        "table_name": table_name if model == "table" else None,
+        "source_column": source_column if model == "table" else None,
+        "source_id": source_id if model == "table" else None,
         "workers": workers, "sources_per_worker": sources_per_worker,
         "batches_per_source": batches_per_source, "expected_points": expected_points,
         "formal_start_ms": t0, "formal_end_ms": t1, "wall_seconds": seconds,
@@ -275,6 +299,11 @@ def main():
     parser.add_argument("jtl", nargs="+")
     parser.add_argument("--run-id")
     parser.add_argument("--device-path", default="root.jmeter.fixed")
+    parser.add_argument("--model", choices=("tree", "table"), default="tree")
+    parser.add_argument("--database", default="")
+    parser.add_argument("--table-name", default="jmeter_fixed")
+    parser.add_argument("--source-column", default="device_id")
+    parser.add_argument("--source-id", default="jmeter_fixed_source")
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--sources-per-worker", type=int, default=50)
     parser.add_argument("--batches-per-source", type=int, default=2400)
@@ -297,7 +326,9 @@ def main():
             raise ValueError("Outputs must be distinct and must not overwrite JTL or readback evidence")
         summary, manifest = validate(args.jtl, run_id=args.run_id, workers=args.workers,
             sources_per_worker=args.sources_per_worker, batches_per_source=args.batches_per_source,
-            functional_only=args.functional_only, readback=args.readback, device_path=args.device_path)
+            functional_only=args.functional_only, readback=args.readback, device_path=args.device_path,
+            model=args.model, database=args.database, table_name=args.table_name,
+            source_column=args.source_column, source_id=args.source_id)
         Path(args.manifest_out).write_bytes(manifest.encode("utf-8"))
         Path(args.summary_out).write_text(json.dumps(summary, ensure_ascii=False,
             indent=2, allow_nan=False) + "\n", encoding="utf-8")

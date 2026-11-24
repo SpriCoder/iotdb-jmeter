@@ -30,6 +30,22 @@ public class FixedWorkloadReadbackTest {
   }
 
   @Test
+  public void parsesTableTagSourcesAndValidatesTableReadbackOptions() throws Exception {
+    List<FixedWorkloadReadback.Entry> entries = FixedWorkloadReadback.parseManifest(
+        (HEADER + "jmeter_fixed_run_test_worker_0_source_0\t100\t50\t149\n")
+            .getBytes(StandardCharsets.UTF_8), "table");
+    assertEquals("jmeter_fixed_run_test_worker_0_source_0", entries.get(0).device);
+    FixedWorkloadReadback.Options options = FixedWorkloadReadback.parseOptions(new String[] {
+        "--manifest", "sources.tsv", "--output", "readback.json", "--model", "table",
+        "--database", "nx08_functional", "--table-name", "jmeter_fixed",
+        "--source-column", "device_id"});
+    assertEquals("table", options.model);
+    assertEquals("nx08_functional", options.database);
+    assertEquals("jmeter_fixed", options.tableName);
+    assertEquals("device_id", options.sourceColumn);
+  }
+
+  @Test
   public void acceptsCrLfButHashesTheExactUnnormalizedFileBytes() throws Exception {
     String lf = HEADER + "root.run.d0\t100\t0\t99\n";
     String crlf = lf.replace("\n", "\r\n");
@@ -89,6 +105,9 @@ public class FixedWorkloadReadbackTest {
         {"--manifest", "sources.tsv", "--output", "result.json", "--password", "secret"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--port", "0"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--aligned", "unknown"},
+        {"--manifest", "sources.tsv", "--output", "result.json", "--model", "table"},
+        {"--manifest", "sources.tsv", "--output", "result.json", "--model", "table",
+            "--database", "nx08_functional", "--aligned", "true"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--port", "6667", "--port", "6668"},
         {"--manifest", "sources.tsv", "--output", "--host"}}) {
       assertThrows(IllegalArgumentException.class, () -> FixedWorkloadReadback.parseOptions(args));

@@ -118,6 +118,44 @@ class FixedWorkloadValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "simple identifier"):
             MODULE.validate([self.path], functional_only=True, device_path="root.bad.*")
 
+    def test_table_model_binds_tag_source_names_to_manifest(self):
+        for row in self.rows:
+            worker = row["iotdb_worker"]
+            is_formal = row["iotdb_phase"] == "formal"
+            base = f"jmeter_source_run_test_worker_{worker}"
+            row["iotdb_device"] = base + (f"_source_{row['iotdb_device'].rsplit('_', 1)[-1]}"
+                                           if is_formal else "")
+        self.write_rows()
+        result, manifest = MODULE.validate([self.path], workers=2, sources_per_worker=2,
+            batches_per_source=2, functional_only=True, model="table",
+            database="nx08_functional", table_name="jmeter_fixed",
+            source_column="device_id", source_id="jmeter_source")
+        self.assertEqual(result["error_count"], 0, result["errors"])
+        self.assertEqual(result["model"], "table")
+        self.assertEqual(result["database"], "nx08_functional")
+        self.assertIn("jmeter_source_run_test_worker_0_source_0", manifest)
+        readback = self.directory / "table-readback.json"
+        proof = {"passed": True, "manifest_sha256": result["manifest_sha256"],
+                 "verified_devices": 4, "verified_points": 8000, "model": "table",
+                 "database": "nx08_functional", "table_name": "jmeter_fixed",
+                 "source_column": "device_id"}
+        for db_name, expected_status in (("nx08_functional", "FUNCTIONAL_VALIDATED"),
+                                         ("different_database", "FAILED")):
+            readback.write_text(json.dumps(dict(proof, database=db_name)))
+            finalized, _ = MODULE.validate([self.path], workers=2, sources_per_worker=2,
+                batches_per_source=2, functional_only=True, model="table",
+                database="nx08_functional", table_name="jmeter_fixed",
+                source_column="device_id", source_id="jmeter_source", readback=readback)
+            self.assertEqual(finalized["status"], expected_status)
+
+    def test_table_model_requires_safe_schema_names(self):
+        self.write_rows()
+        with self.assertRaisesRegex(ValueError, "requires database"):
+            MODULE.validate([self.path], functional_only=True, model="table")
+        with self.assertRaisesRegex(ValueError, "simple identifier"):
+            MODULE.validate([self.path], functional_only=True, model="table",
+                database="nx08_functional", source_column="device id")
+
     def test_end_timestamp_and_explicit_error_flags_are_rejected(self):
         self.rows[-1]["iotdb_timestamp_is_start"] = "false"
         self.assert_failed("sample start")

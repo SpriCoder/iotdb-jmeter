@@ -15,6 +15,11 @@ final class WriteConfig {
   final int port;
   final String username;
   final String password;
+  final String model;
+  final String tableDatabase;
+  final String tableName;
+  final String sourceColumn;
+  final String sourceId;
   final String devicePath;
   final boolean devicePerThread;
   final String runId;
@@ -42,12 +47,27 @@ final class WriteConfig {
     password = suppliedPassword.isEmpty() ? System.getenv("IOTDB_PASSWORD") : suppliedPassword;
     require(password != null && !password.isEmpty(),
         "Set IOTDB_PASSWORD or the password parameter before running the sampler");
-    String legacyPath = context.getParameter("database", "").trim();
+    model = context.getParameter("model", "tree").trim().toLowerCase(Locale.ROOT);
+    require(model.equals("tree") || model.equals("table"), "model must be tree or table");
+    tableDatabase = model.equals("table") ? context.getParameter("database", "").trim().toLowerCase(Locale.ROOT)
+        : context.getParameter("database", "").trim();
+    tableName = context.getParameter("table_name", "jmeter_data").trim().toLowerCase(Locale.ROOT);
+    sourceColumn = context.getParameter("source_column", "device_id").trim().toLowerCase(Locale.ROOT);
+    sourceId = context.getParameter("source_id", "jmeter_source").trim();
+    if (model.equals("table")) {
+      requireIdentifier(tableDatabase, "database");
+      requireIdentifier(tableName, "table_name");
+      requireIdentifier(sourceColumn, "source_column");
+      requireIdentifier(sourceId, "source_id");
+    }
+    String legacyPath = model.equals("tree") ? tableDatabase : "";
     String suppliedPath = context.getParameter("device_path", "").trim();
     devicePath = suppliedPath.isEmpty()
         ? (legacyPath.isEmpty() ? "root.jmeter.device" : legacyPath) : suppliedPath;
-    require(devicePath.matches("root(?:\\.[A-Za-z_][A-Za-z0-9_]*)+"),
-        "device_path must be a root path with simple identifier nodes (no wildcards)");
+    if (model.equals("tree")) {
+      require(devicePath.matches("root(?:\\.[A-Za-z_][A-Za-z0-9_]*)+"),
+          "device_path must be a root path with simple identifier nodes (no wildcards)");
+    }
     devicePerThread = bool(context, "device_per_thread", true);
     runId = context.getParameter("run_id", "").trim();
     require(runId.isEmpty() || runId.matches("[A-Za-z0-9_]+"),
@@ -61,6 +81,11 @@ final class WriteConfig {
     List<String> parsedNames = new ArrayList<>();
     for (String name : names.split(",", -1)) {
       name = name.trim();
+      if (model.equals("table")) {
+        name = name.toLowerCase(Locale.ROOT);
+        require(!name.equals("time") && !name.equals(sourceColumn),
+            "Table FIELD names must differ from time and source_column");
+      }
       require(name.matches("[A-Za-z_][A-Za-z0-9_]*"),
           "measurements must contain comma-separated simple identifiers");
       parsedNames.add(name);
@@ -68,6 +93,7 @@ final class WriteConfig {
     require(new HashSet<>(parsedNames).size() == parsedNames.size(),
         "measurements must not contain duplicate names");
     measurements = Collections.unmodifiableList(parsedNames);
+    require(!model.equals("table") || !sourceColumn.equals("time"), "source_column must differ from time");
     List<TSDataType> parsedTypes = new ArrayList<>();
     for (String type : text(context, "data_types", "INT64").split(",", -1)) {
       switch (type.trim().toUpperCase(Locale.ROOT)) {
@@ -93,6 +119,7 @@ final class WriteConfig {
     valueStart = number(context, "value_start", 0);
     valueStep = number(context, "value_step", 1);
     aligned = bool(context, "aligned", false);
+    require(!model.equals("table") || !aligned, "aligned applies only to tree model; table columns are not aligned");
     prepareSchema = bool(context, "prepare_schema", true);
     stopOnError = bool(context, "stop_on_error", true);
     connectionTimeoutMs = positiveInt(context, "connection_timeout_ms", 5000);
@@ -131,6 +158,10 @@ final class WriteConfig {
     require(value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false"),
         name + " must be true or false");
     return Boolean.parseBoolean(value);
+  }
+
+  private static void requireIdentifier(String value, String name) {
+    require(value.matches("[A-Za-z_][A-Za-z0-9_]*"), name + " must be a simple SQL identifier");
   }
 
   private static void require(boolean condition, String message) {

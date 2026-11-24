@@ -1,12 +1,12 @@
 # IoTDB JMeter 写入插件
 
-使用 JMeter Java Sampler 对 **IoTDB 2.0.6 树模型**进行批量写入测试。客户端固定使用 IoTDB Session 2.0.6 和 TsFile Tablet API，支持多测点、对齐序列、线程独立设备，以及写入行数和测点数核验。
+使用 JMeter Java Sampler 对 **IoTDB/TimechoDB 2.0.6 树模型或表模型**进行批量写入测试。树模型通过 Session RPC 写入；表模型通过 TableSession 写入，以 TAG 列标识逻辑数据源、FIELD 列承载测点。两种模式都支持批量 Tablet 写入和写入行数/测点数核验。
 
 本插件是 TC-01 的写入负载发生器，不是完整验收判定器。正式验收仍须由测试计划固定 500 个不重叠源、共同测量窗口和唯一运行标识，并独立执行数据库 COUNT、首末值抽样、重复/丢失核对及服务端资源采集。JMeter Throughput 是样本/秒，不能直接当作唯一测点/秒。
 
-固定点数、每批 100 行的方案见 [固定工作量计划与验收流程](docs/FIXED-WORKLOAD.md)。下文提供通用写入示例。
+固定点数、每批 100 行的方案见 [固定工作量计划与验收流程](docs/FIXED-WORKLOAD.md)。树模型和表模型计划分别为 `examples/iotdb-fixed-workload.jmx` 和 `examples/iotdb-fixed-table-workload.jmx`。
 
-建议使用 JDK 17、Maven 3.8+、JMeter 5.6.3；代码以 Java 8 为目标。IoTDB 服务端必须采用毫秒时间精度 `timestamp_precision=ms`，并开放树模型 RPC 接口，通常为 `6667`。
+建议使用 JDK 17、Maven 3.8+、JMeter 5.6.3；代码以 Java 8 为目标。服务端必须采用毫秒时间精度 `timestamp_precision=ms`，Session RPC 通常为 `6667`。表模型模式需指定数据库、表名和 TAG 源标识列；插件会在采样计时前创建数据库/表并核对 schema。
 
 ## 构建与安装
 
@@ -41,7 +41,21 @@ result_dir=$(mktemp -d)
   -Jsample_variables=iotdb_ack_rows,iotdb_ack_points,iotdb_attempted_rows,iotdb_device,iotdb_first_timestamp,iotdb_last_timestamp
 ```
 
-默认连接 `127.0.0.1:6667`，用户名 `root`；密码从 `IOTDB_PASSWORD` 读取，示例不含密码。默认每线程一个样本，每个样本用一个 Tablet 写入 100 行、一个 `INT64` 测点，因此本次运行预期确认 100 个测点。设备默认追加本次进程的运行标识和采样器编号，避免默认多线程互相覆盖。Windows 的安装和 PowerShell 运行方式见 [完整使用说明](docs/USAGE.md)。
+默认连接 `127.0.0.1:6667`，用户名 `root`；密码从 `IOTDB_PASSWORD` 读取，示例不含密码。默认使用树模型；表模型以 TAG 值区分源，测试字段保存在同一张表中。Windows 的安装和 PowerShell 运行方式见 [完整使用说明](docs/USAGE.md)。
+
+表模型通用写入使用数据库、表名和源 TAG 列，例如：
+
+```bash
+"$JMETER_HOME/bin/jmeter" -n -t examples/iotdb-write.jmx \
+  -l "$result_dir/table.jtl" -j "$result_dir/table.log" \
+  -Jmodel=table -Jdatabase=nx08_functional -Jtable_name=jmeter_data \
+  -Jsource_column=device_id -Jsource_id=jmeter_source \
+  -Jmeasurements=s0,s1 -Jdata_types=INT64,DOUBLE \
+  -Jsampleresult.timestamp.start=true \
+  -Jsample_variables=iotdb_ack_rows,iotdb_ack_points,iotdb_attempted_rows,iotdb_device,iotdb_first_timestamp,iotdb_last_timestamp
+```
+
+插件会创建缺少的数据库/表；表已存在时会核对 `STRING TAG` 源列及测点的 FIELD 类型。每个线程写入独立 TAG 源标识，避免多线程相互覆盖。
 
 用随附工具汇总实际确认的行数、测点数、失败样本与墙钟吞吐量（需要 Python 3）：
 

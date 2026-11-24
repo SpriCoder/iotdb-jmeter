@@ -14,6 +14,37 @@
 
 正式设备的默认路径为 `root.jmeter.fixed.run_<run_id>.worker_<n>.source_<k>`；预热设备使用同一线程路径下的 `warmup_<k>`。可用 `-Jdevice_path=<prefix>` 设置另一明确前缀；两次 JTL 审核均须相应设置 `--device-path <prefix>`。线程编号来自该运行内部注册，不能假定它等于 JMeter 的线程名称。每次运行必须提供新的 `run_id`，仅允许字母、数字和下划线；禁止重用包含旧数据的运行路径。
 
+### 表模型固定工作量
+
+表模型计划为 [iotdb-fixed-table-workload.jmx](../examples/iotdb-fixed-table-workload.jmx)，采用同一 500 源、12 亿测点、每批 100 行工况。全部数据写入一张表；每个逻辑源对应唯一 STRING TAG 值 `jmeter_fixed_source_run_<run_id>_worker_<n>_source_<k>`，十个 `INT64` 测点为 FIELD。预热源也使用独立 TAG 值。计划默认数据库为 `nx08_performance`、表名为 `jmeter_fixed`、TAG 列为 `device_id`；执行前可编辑 JMX 中这几个参数，写入和校验/读回时必须保持一致。
+
+插件会在采样计时前创建数据库及表，并确认表仅含预期的时间列、一个 STRING TAG 源列和十个指定类型的 FIELD。表模型不支持 `aligned=true`。正式运行使用表模型计划：
+
+```bash
+"$JMETER_HOME/bin/jmeter" -n -t examples/iotdb-fixed-table-workload.jmx \
+  -l "$result_dir/results.jtl" -j "$result_dir/jmeter.log" \
+  -Jrun_id="$run_id" -Jhost=127.0.0.1 -Jport=6667 \
+  -Jsampleresult.timestamp.start=true \
+  -Jjmeter.save.saveservice.output_format=csv \
+  -Jjmeter.save.saveservice.print_field_names=true \
+  -Jjmeter.save.saveservice.timestamp_format=ms \
+  -Jsample_variables="$sample_variables"
+```
+
+用同一模型和表元数据审核并独立读回：
+
+```bash
+python3 scripts/validate_fixed_workload.py "$result_dir/results.jtl" \
+  --run-id "$run_id" --model table --database nx08_performance \
+  --table-name jmeter_fixed --source-column device_id --source-id jmeter_fixed_source \
+  --manifest-out "$result_dir/manifest.tsv" --summary-out "$result_dir/jtl-audit.json"
+java -cp target/iotdb-jmeter-plugin.jar org.apache.iotdb.jmeter.test.FixedWorkloadReadback \
+  --manifest "$result_dir/manifest.tsv" --output "$result_dir/readback.json" \
+  --model table --database nx08_performance --table-name jmeter_fixed --source-column device_id
+```
+
+第二次审核同样带上上述 `--model table --database ... --table-name ... --source-column ... --source-id ...` 参数和 `--readback "$result_dir/readback.json"`。工具按 TAG 源分别核对计数、时间戳边界和首/中/末测点值。
+
 默认数据起始时间戳为 `1700000000000`，步长为 1 毫秒；第 `r` 行的时间戳为 `start_timestamp + r`，测点 `s<i>` 的值为 `r + i`。这是可复核的合成数据时间，不按数据时间戳限速。生成器可通过 `--start-timestamp` 固定另一明确起点；建模、连接、预热和数据库回读均不计入正式写入吞吐。
 
 ## 构建和生成

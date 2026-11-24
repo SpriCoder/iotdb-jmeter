@@ -19,6 +19,28 @@ import static org.junit.Assert.*;
 
 public class FixedWorkloadSamplerTest {
   @Test
+  public void tableWorkloadUsesTagSourcesAndCountsOnlyFieldValues() {
+    FakeClient client = new FakeClient();
+    FixedWorkloadSampler sampler = sampler(client);
+    JavaSamplerContext context = context(1, 2, 2, "model", "table", "database", "nx08_functional");
+    sampler.setupTest(context);
+    try {
+      assertTrue(sampler.runTest(context).isSuccessful());
+      assertTrue(client.paths.get(0).endsWith("_warmup_0"));
+      assertTrue(client.paths.get(1).endsWith("_warmup_1"));
+      for (int call = 0; call < 4; call++) {
+        SampleResult result = sampler.runTest(context);
+        assertTrue(result.getResponseMessage(), result.isSuccessful());
+        assertTrue(client.paths.get(call + 2).endsWith("_source_" + call % 2));
+        assertEquals((call / 2) * 100L, (long) client.firstValues.get(call + 2));
+        assertTrue(result.getResponseDataAsString().contains("\"acknowledged_points\":1000"));
+      }
+    } finally {
+      sampler.teardownTest(context);
+    }
+  }
+
+  @Test
   public void warmsSeparatePathsAndWritesRoundRobinWithOneConnection() {
     FakeClient client = new FakeClient();
     FixedWorkloadSampler sampler = sampler(client);
@@ -215,10 +237,13 @@ public class FixedWorkloadSamplerTest {
       if (notEmpty) { throw new IllegalArgumentException("Existing data"); }
     }
     @Override public void insert(Tablet tablet, boolean aligned) throws Exception {
-      paths.add(tablet.getDeviceId());
+      boolean table = tablet.getColumnTypes() != null && !tablet.getColumnTypes().isEmpty()
+          && tablet.getColumnTypes().get(0) == org.apache.tsfile.enums.ColumnCategory.TAG;
+      paths.add(table ? ((org.apache.tsfile.utils.Binary) tablet.getValue(0, 0))
+          .getStringValue(java.nio.charset.StandardCharsets.UTF_8) : tablet.getDeviceId());
       rows.add(tablet.getRowSize());
       firstTimestamps.add(tablet.getTimestamp(0));
-      firstValues.add((Long) tablet.getValue(0, 0));
+      firstValues.add((Long) tablet.getValue(0, table ? 1 : 0));
       if (paths.size() == failInsert) {
         throw new Exception("lost response test_password_placeholder");
       }

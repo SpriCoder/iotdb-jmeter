@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
-/** IoTDB 2.x tree-model writer: one Session per JMeter sampler/thread. */
+/** IoTDB 2.x tree/table writer: one Session per JMeter sampler/thread. */
 public class JmeterTest extends AbstractJavaSamplerClient {
   private static final Logger LOG = Logger.getLogger(JmeterTest.class.getName());
   private static final String AUTO_RUN_ID = UUID.randomUUID().toString().replace("-", "");
@@ -35,6 +35,11 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     args.addArgument("port", "6667");
     args.addArgument("username", "root");
     args.addArgument("password", "");
+    args.addArgument("model", "tree");
+    args.addArgument("database", "");
+    args.addArgument("table_name", "jmeter_data");
+    args.addArgument("source_column", "device_id");
+    args.addArgument("source_id", "jmeter_source");
     args.addArgument("device_path", "root.jmeter.device");
     args.addArgument("device_per_thread", "true");
     args.addArgument("run_id", "");
@@ -63,10 +68,12 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     device = "";
     try {
       config = new WriteConfig(context);
-      device = config.devicePath;
+      device = config.model.equals("table") ? config.sourceId : config.devicePath;
       if (config.devicePerThread) {
         String runId = config.runId.isEmpty() ? AUTO_RUN_ID : config.runId;
-        device += ".run_" + runId + ".t" + SAMPLER_IDS.getAndIncrement();
+        device += config.model.equals("table")
+            ? "_run_" + runId + "_t" + SAMPLER_IDS.getAndIncrement()
+            : ".run_" + runId + ".t" + SAMPLER_IDS.getAndIncrement();
       }
       nextTimestamp = config.startTimestamp == -1 ? System.currentTimeMillis() : config.startTimestamp;
       nextValue = config.valueStart;
@@ -90,7 +97,7 @@ public class JmeterTest extends AbstractJavaSamplerClient {
   @Override
   public SampleResult runTest(JavaSamplerContext context) {
     SampleResult result = new SampleResult();
-    result.setSampleLabel("IoTDB tree write");
+    result.setSampleLabel("IoTDB " + (config == null ? "write" : config.model + " write"));
     result.setDataType(SampleResult.TEXT);
     result.setContentType("application/json");
     result.setDataEncoding("UTF-8");
@@ -173,7 +180,8 @@ public class JmeterTest extends AbstractJavaSamplerClient {
       nextTimestamp = Math.addExact(first, span);
       return first;
     }
-    String key = config.host + ":" + config.port + "/" + device;
+    String key = config.host + ":" + config.port + "/" + config.model + "/"
+        + config.tableDatabase + "/" + config.tableName + "/" + config.sourceColumn + "/" + device;
     AtomicLong clock = SHARED_TIMESTAMPS.computeIfAbsent(key, ignored -> new AtomicLong(nextTimestamp));
     while (true) {
       long current = clock.get();

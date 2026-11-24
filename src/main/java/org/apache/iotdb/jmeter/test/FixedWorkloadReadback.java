@@ -1,7 +1,9 @@
 package org.apache.iotdb.jmeter.test;
 
 import org.apache.iotdb.isession.SessionDataSet;
+import org.apache.iotdb.isession.ITableSession;
 import org.apache.iotdb.session.Session;
+import org.apache.iotdb.session.TableSessionBuilder;
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.Field;
 import org.apache.tsfile.read.common.RowRecord;
@@ -22,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Independent, read-only reconciliation for the fixed 100-row, ten-INT64 workload. */
+/** Independent, read-only reconciliation for the fixed 100-row, ten-INT64 tree/table workload. */
 public final class FixedWorkloadReadback {
   private static final String HEADER = "device\trows\tfirst_timestamp\tlast_timestamp";
   private static final String NAMES = "s0,s1,s2,s3,s4,s5,s6,s7,s8,s9";
@@ -41,8 +43,13 @@ public final class FixedWorkloadReadback {
     Path output = extractPath(args, "--output");
     String password = System.getenv("IOTDB_PASSWORD");
     Session session = null;
+    ITableSession tableSession = null;
     try {
       Options options = parseOptions(args);
+      report.model = options.model;
+      report.database = options.database;
+      report.tableName = options.tableName;
+      report.sourceColumn = options.sourceColumn;
       output = options.output;
       if (options.manifest.equals(output)
           || (Files.exists(output) && Files.isSameFile(options.manifest, output))) {
@@ -51,19 +58,46 @@ public final class FixedWorkloadReadback {
       }
       byte[] raw = Files.readAllBytes(options.manifest);
       report.manifestSha256 = sha256(raw);
-      List<Entry> entries = parseManifest(raw);
+      List<Entry> entries = parseManifest(raw, options.model);
       require(password != null && !password.isEmpty(), "Set IOTDB_PASSWORD before running readback");
-      session = new Session.Builder().host(options.host).port(options.port)
-          .username(options.username).password(password).sqlDialect("tree")
-          .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
-          .timeOut(60000).build();
-      session.open(false, 5000);
-      session.setQueryTimeout(60000);
-      require("ms".equals(session.getTimestampPrecision()), "Server timestamp precision must be ms");
-      report.serverVersion = serverVersion(session);
+      if (options.model.equals("tree")) {
+        session = new Session.Builder().host(options.host).port(options.port)
+            .username(options.username).password(password).sqlDialect("tree")
+            .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
+            .timeOut(60000).build();
+        session.open(false, 5000);
+        session.setQueryTimeout(60000);
+        require("ms".equals(session.getTimestampPrecision()), "Server timestamp precision must be ms");
+        report.serverVersion = serverVersion(session);
+      } else {
+        Session precision = new Session.Builder().host(options.host).port(options.port)
+            .username(options.username).password(password).sqlDialect("table")
+            .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0).build();
+        try {
+          precision.open(false, 5000);
+          require("ms".equals(precision.getTimestampPrecision()), "Server timestamp precision must be ms");
+        } finally {
+          precision.close();
+        }
+        tableSession = new TableSessionBuilder()
+            .nodeUrls(java.util.Collections.singletonList(options.host + ":" + options.port))
+            .username(options.username).password(password).database(options.database)
+            .queryTimeoutInMs(60000).connectionTimeoutInMs(5000)
+            .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0).build();
+        List<String> fields = new ArrayList<>();
+        for (int column = 0; column < 10; column++) {
+          fields.add("s" + column);
+        }
+        SessionWriteClient.validateTableSchema(tableSession, options.tableName, options.sourceColumn,
+            fields, java.util.Collections.nCopies(10, TSDataType.INT64));
+        report.serverVersion = serverVersion(tableSession);
+      }
       for (Entry entry : entries) {
         try {
-          if (verifyDevice(session, entry, options.aligned, report.errors)) {
+          boolean verified = options.model.equals("tree")
+              ? verifyDevice(session, entry, options.aligned, report.errors)
+              : verifyTableSource(tableSession, options, entry, report.errors);
+          if (verified) {
             report.verifiedDevices++;
             report.verifiedPoints = Math.addExact(report.verifiedPoints, Math.multiplyExact(entry.rows, 10L));
           }
@@ -86,6 +120,14 @@ public final class FixedWorkloadReadback {
         } catch (Exception error) {
           report.passed = false;
           report.errors.add("Reader Session close failed (" + error.getClass().getSimpleName() + ")");
+        }
+      }
+      if (tableSession != null) {
+        try {
+          tableSession.close();
+        } catch (Exception error) {
+          report.passed = false;
+          report.errors.add("Reader TableSession close failed (" + error.getClass().getSimpleName() + ")");
         }
       }
     }
@@ -118,6 +160,19 @@ public final class FixedWorkloadReadback {
   }
 
   private static String serverVersion(Session session) throws Exception {
+    try (SessionDataSet data = session.executeQueryStatement("SHOW VERSION")) {
+      require(data.hasNext(), "SHOW VERSION returned no row");
+      RowRecord row = data.next();
+      require(!row.getFields().isEmpty(), "SHOW VERSION returned no version");
+      Field version = row.getFields().get(0);
+      require(version != null && version.getDataType() != null, "SHOW VERSION returned a null version");
+      String value = version.getStringValue();
+      require(value != null && !value.trim().isEmpty(), "SHOW VERSION returned an empty version");
+      return value.length() > 512 ? value.substring(0, 512) : value;
+    }
+  }
+
+  private static String serverVersion(ITableSession session) throws Exception {
     try (SessionDataSet data = session.executeQueryStatement("SHOW VERSION")) {
       require(data.hasNext(), "SHOW VERSION returned no row");
       RowRecord row = data.next();
@@ -214,12 +269,86 @@ public final class FixedWorkloadReadback {
     return errors.size() == initialErrors;
   }
 
+  private static boolean verifyTableSource(
+      ITableSession session, Options options, Entry entry, List<String> errors) throws Exception {
+    int initialErrors = errors.size();
+    String filter = options.sourceColumn + " = '" + entry.device + "'";
+    StringBuilder aggregate = new StringBuilder("SELECT ");
+    for (int column = 0; column < 10; column++) {
+      if (column > 0) {
+        aggregate.append(',');
+      }
+      aggregate.append("count(s").append(column).append(')');
+    }
+    aggregate.append(" FROM ").append(options.tableName).append(" WHERE ").append(filter);
+    try (SessionDataSet data = session.executeQueryStatement(aggregate.toString())) {
+      require(data.hasNext(), "Table aggregate query returned no row");
+      List<Field> fields = data.next().getFields();
+      require(fields.size() == 10 && !data.hasNext(), "Table aggregate query shape differs from ten fields");
+      for (int column = 0; column < 10; column++) {
+        long count = integer(fields.get(column));
+        if (count != entry.rows) {
+          errors.add(entry.device + ".s" + column + ": COUNT expected " + entry.rows + ", found " + count);
+        }
+      }
+    }
+    long first = tableBound(session, options, filter, false);
+    long last = tableBound(session, options, filter, true);
+    if (first != entry.first || last != entry.last) {
+      errors.add(entry.device + ": timestamp bounds expected " + entry.first + ".." + entry.last
+          + ", found " + first + ".." + last);
+    }
+    Set<Long> samples = new LinkedHashSet<>();
+    samples.add(entry.first);
+    samples.add(entry.first + (entry.rows - 1) / 2);
+    samples.add(entry.last);
+    for (long timestamp : samples) {
+      String sql = "SELECT time," + NAMES + " FROM " + options.tableName + " WHERE " + filter
+          + " AND time = " + timestamp;
+      try (SessionDataSet data = session.executeQueryStatement(sql)) {
+        SessionDataSet.DataIterator iterator = data.iterator();
+        require(iterator.next(), "Table sample query returned no row");
+        require(!iterator.isNull("time") && iterator.getLong("time") == timestamp,
+            "Table sample timestamp mismatch");
+        for (int column = 0; column < 10; column++) {
+          long expected = timestamp - entry.first + column;
+          require(!iterator.isNull("s" + column), "Table sample returned a null FIELD");
+          long actual = iterator.getLong("s" + column);
+          if (actual != expected) {
+            errors.add(entry.device + ".s" + column + ": timestamp " + timestamp
+                + " expected value " + expected + ", found " + actual);
+          }
+        }
+        require(!iterator.next(), "Table sample query returned multiple rows");
+      }
+    }
+    return errors.size() == initialErrors;
+  }
+
+  private static long tableBound(ITableSession session, Options options, String filter, boolean descending)
+      throws Exception {
+    String direction = descending ? "DESC" : "ASC";
+    String sql = "SELECT time FROM " + options.tableName + " WHERE " + filter
+        + " ORDER BY time " + direction + " LIMIT 1";
+    try (SessionDataSet data = session.executeQueryStatement(sql)) {
+      SessionDataSet.DataIterator iterator = data.iterator();
+      require(iterator.next() && !iterator.isNull("time"), "Table timestamp bound query returned no time");
+      long time = iterator.getLong("time");
+      require(!iterator.next(), "Table timestamp bound query returned multiple rows");
+      return time;
+    }
+  }
+
   private static long integer(Field field) {
     require(field != null && field.getDataType() == TSDataType.INT64, "Query returned a null/non-INT64 field");
     return field.getLongV();
   }
 
   static List<Entry> parseManifest(byte[] raw) throws CharacterCodingException {
+    return parseManifest(raw, "tree");
+  }
+
+  static List<Entry> parseManifest(byte[] raw, String model) throws CharacterCodingException {
     String text = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
         .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(raw)).toString();
     String[] lines = text.split("\n", -1);
@@ -234,8 +363,10 @@ public final class FixedWorkloadReadback {
       }
       String[] fields = value.split("\t", -1);
       require(fields.length == 4, "Manifest line " + (line + 1) + " must have four TSV fields");
-      require(fields[0].matches("root(?:\\.[A-Za-z_][A-Za-z0-9_]*)+"),
-          "Manifest line " + (line + 1) + " has an invalid device path");
+      String identityPattern = model.equals("table") ? "[A-Za-z_][A-Za-z0-9_]*"
+          : "root(?:\\.[A-Za-z_][A-Za-z0-9_]*)+";
+      require(fields[0].matches(identityPattern),
+          "Manifest line " + (line + 1) + " has an invalid source identity");
       require(seen.add(fields[0]), "Manifest contains a duplicate device at line " + (line + 1));
       try {
         long rows = unsigned(fields[1]);
@@ -276,7 +407,9 @@ public final class FixedWorkloadReadback {
     for (int index = 0; index < args.length; index += 2) {
       String key = args[index];
       require(key.equals("--manifest") || key.equals("--output") || key.equals("--host")
-          || key.equals("--port") || key.equals("--username") || key.equals("--aligned"),
+          || key.equals("--port") || key.equals("--username") || key.equals("--aligned")
+          || key.equals("--model") || key.equals("--database") || key.equals("--table-name")
+          || key.equals("--source-column"),
           "Unknown readback option");
       require(index + 1 < args.length && !args[index + 1].isEmpty() && !args[index + 1].startsWith("--"),
           "Readback option requires a value");
@@ -293,10 +426,22 @@ public final class FixedWorkloadReadback {
     require(port > 0 && port <= 65535, "Readback port must be between 1 and 65535");
     String aligned = values.getOrDefault("--aligned", "false");
     require(aligned.equals("true") || aligned.equals("false"), "Readback aligned must be true or false");
+    String model = values.getOrDefault("--model", "tree");
+    require(model.equals("tree") || model.equals("table"), "Readback model must be tree or table");
+    String database = values.getOrDefault("--database", "");
+    String tableName = values.getOrDefault("--table-name", "jmeter_fixed");
+    String sourceColumn = values.getOrDefault("--source-column", "device_id");
+    if (model.equals("table")) {
+      require(database.matches("[A-Za-z_][A-Za-z0-9_]*"), "Table readback requires a simple database name");
+      require(tableName.matches("[A-Za-z_][A-Za-z0-9_]*"), "Table readback requires a simple table name");
+      require(sourceColumn.matches("[A-Za-z_][A-Za-z0-9_]*"), "Table readback requires a simple source column");
+      require(aligned.equals("false"), "Aligned readback applies only to tree model");
+    }
     return new Options(Paths.get(values.get("--manifest")).toAbsolutePath().normalize(),
         Paths.get(values.get("--output")).toAbsolutePath().normalize(),
         values.getOrDefault("--host", "127.0.0.1"), port,
-        values.getOrDefault("--username", "root"), Boolean.parseBoolean(aligned));
+        values.getOrDefault("--username", "root"), Boolean.parseBoolean(aligned),
+        model, database, tableName, sourceColumn);
   }
 
   private static Path extractPath(String[] args, String flag) {
@@ -338,18 +483,31 @@ public final class FixedWorkloadReadback {
     final int port;
     final String username;
     final boolean aligned;
-    Options(Path manifest, Path output, String host, int port, String username, boolean aligned) {
+    final String model;
+    final String database;
+    final String tableName;
+    final String sourceColumn;
+    Options(Path manifest, Path output, String host, int port, String username, boolean aligned,
+        String model, String database, String tableName, String sourceColumn) {
       this.manifest = manifest;
       this.output = output;
       this.host = host;
       this.port = port;
       this.username = username;
       this.aligned = aligned;
+      this.model = model;
+      this.database = database;
+      this.tableName = tableName;
+      this.sourceColumn = sourceColumn;
     }
   }
 
   static final class Report {
     boolean passed;
+    String model;
+    String database;
+    String tableName;
+    String sourceColumn;
     String manifestSha256;
     long verifiedDevices;
     long verifiedPoints;
@@ -362,6 +520,10 @@ public final class FixedWorkloadReadback {
 
     String json(String secret) {
       StringBuilder json = new StringBuilder("{\n  \"passed\": ").append(passed)
+          .append(",\n  \"model\": ").append(quote(model))
+          .append(",\n  \"database\": ").append(quote(database))
+          .append(",\n  \"table_name\": ").append(quote(tableName))
+          .append(",\n  \"source_column\": ").append(quote(sourceColumn))
           .append(",\n  \"manifest_sha256\": ").append(quote(manifestSha256))
           .append(",\n  \"verified_devices\": ").append(verifiedDevices)
           .append(",\n  \"verified_points\": ").append(verifiedPoints)

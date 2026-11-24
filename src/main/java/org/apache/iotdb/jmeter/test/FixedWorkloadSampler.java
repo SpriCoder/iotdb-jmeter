@@ -31,6 +31,10 @@ public class FixedWorkloadSampler extends AbstractJavaSamplerClient {
     args.removeArgument("device_per_thread");
     args.removeArgument("stop_on_error");
     replace(args, "device_path", "root.jmeter.fixed");
+    replace(args, "model", "tree");
+    replace(args, "table_name", "jmeter_fixed");
+    replace(args, "source_column", "device_id");
+    replace(args, "source_id", "jmeter_fixed_source");
     replace(args, "measurements", "s0,s1,s2,s3,s4,s5,s6,s7,s8,s9");
     replace(args, "data_types", "INT64,INT64,INT64,INT64,INT64,INT64,INT64,INT64,INT64,INT64");
     replace(args, "start_timestamp", "1700000000000");
@@ -68,12 +72,16 @@ public class FixedWorkloadSampler extends AbstractJavaSamplerClient {
       prepareTimeoutMs = positiveInt(context, "prepare_timeout_ms", 300000);
       totalCalls = Math.multiplyExact((long) sources, batchesPerSource);
       Math.addExact(config.startTimestamp, Math.multiplyExact((long) batchesPerSource, 100));
-      String signature = config.host + ":" + config.port + "/" + config.devicePath + "/"
+      String signature = config.host + ":" + config.port + "/" + config.model + "/"
+          + config.tableDatabase + "/" + config.tableName + "/" + config.sourceColumn + "/"
+          + config.devicePath + "/" + config.sourceId + "/"
           + workers + "/" + sources + "/" + batchesPerSource + "/"
           + config.startTimestamp + "/" + config.aligned;
       run = FixedRunCoordinator.acquire(config.runId, signature, workers);
       worker = run.register();
-      workerPath = config.devicePath + ".run_" + config.runId + ".worker_" + worker;
+      workerPath = config.model.equals("table")
+          ? config.sourceId + "_run_" + config.runId + "_worker_" + worker
+          : config.devicePath + ".run_" + config.runId + ".worker_" + worker;
       tablets = new TabletFactory[sources];
       client = createClient();
       client.open(config);
@@ -185,11 +193,11 @@ public class FixedWorkloadSampler extends AbstractJavaSamplerClient {
   }
 
   private String source(int index) {
-    return workerPath + ".source_" + index;
+    return workerPath + (config.model.equals("table") ? "_source_" : ".source_") + index;
   }
 
   private String warmup(int index) {
-    return workerPath + ".warmup_" + index;
+    return workerPath + (config.model.equals("table") ? "_warmup_" : ".warmup_") + index;
   }
 
   private static int positiveInt(JavaSamplerContext context, String name, int defaultValue) {

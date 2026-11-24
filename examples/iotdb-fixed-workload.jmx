@@ -47,6 +47,31 @@
                 <stringProp name="Argument.value" />
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
+              <elementProp name="model" elementType="Argument">
+                <stringProp name="Argument.name">model</stringProp>
+                <stringProp name="Argument.value">tree</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="database" elementType="Argument">
+                <stringProp name="Argument.name">database</stringProp>
+                <stringProp name="Argument.value" />
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="table_name" elementType="Argument">
+                <stringProp name="Argument.name">table_name</stringProp>
+                <stringProp name="Argument.value">jmeter_fixed</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="source_column" elementType="Argument">
+                <stringProp name="Argument.name">source_column</stringProp>
+                <stringProp name="Argument.value">device_id</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="source_id" elementType="Argument">
+                <stringProp name="Argument.name">source_id</stringProp>
+                <stringProp name="Argument.value">jmeter_fixed_source</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
               <elementProp name="device_path" elementType="Argument">
                 <stringProp name="Argument.name">device_path</stringProp>
                 <stringProp name="Argument.value">${__P(device_path,root.jmeter.fixed)}</stringProp>

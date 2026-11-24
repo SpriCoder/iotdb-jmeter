@@ -72,6 +72,24 @@ class FixedWorkloadPlanTest(unittest.TestCase):
         self.assertIn("cannot support", root.find(".//stringProp[@name='TestPlan.comments']").text)
         self.assertEqual(arguments(root)["workers"], "2")
 
+    def test_table_model_plan_carries_database_table_and_tag_source(self):
+        root = ET.fromstring(MODULE.build_plan(2, 2, 2, functional_only=True,
+            model="table", database="nx08_performance", table_name="jmeter_fixed",
+            source_column="device_id", source_id="jmeter_source"))
+        values = arguments(root)
+        self.assertEqual(values["model"], "table")
+        self.assertEqual(values["database"], "nx08_performance")
+        self.assertEqual(values["table_name"], "jmeter_fixed")
+        self.assertEqual(values["source_column"], "device_id")
+        self.assertEqual(values["source_id"], "jmeter_source")
+
+    def test_table_model_requires_safe_database_and_column_identifiers(self):
+        for options in ({"model": "table"},
+                        {"model": "table", "database": "db;DROP"},
+                        {"source_column": "device id"}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                MODULE.build_plan(functional_only=True, **options)
+
     def test_invalid_dimensions_and_timestamp_overflow_are_rejected(self):
         for name, value in [("workers", 0), ("workers", 11), ("sources_per_worker", -1),
                             ("sources_per_worker", 51), ("batches_per_source", 2401),

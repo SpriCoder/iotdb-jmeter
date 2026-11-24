@@ -49,6 +49,31 @@
                 <stringProp name="Argument.value">${__P(password,)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
+              <elementProp name="model" elementType="Argument">
+                <stringProp name="Argument.name">model</stringProp>
+                <stringProp name="Argument.value">${__P(model,tree)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="database" elementType="Argument">
+                <stringProp name="Argument.name">database</stringProp>
+                <stringProp name="Argument.value">${__P(database,)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="table_name" elementType="Argument">
+                <stringProp name="Argument.name">table_name</stringProp>
+                <stringProp name="Argument.value">${__P(table_name,jmeter_data)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="source_column" elementType="Argument">
+                <stringProp name="Argument.name">source_column</stringProp>
+                <stringProp name="Argument.value">${__P(source_column,device_id)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="source_id" elementType="Argument">
+                <stringProp name="Argument.name">source_id</stringProp>
+                <stringProp name="Argument.value">${__P(source_id,jmeter_source)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
               <elementProp name="device_path" elementType="Argument">
                 <stringProp name="Argument.name">device_path</stringProp>
                 <stringProp name="Argument.value">${__P(device_path,root.jmeter.device)}</stringProp>

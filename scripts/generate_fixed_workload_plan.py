@@ -3,6 +3,7 @@
 
 import argparse
 from pathlib import Path
+import re
 import xml.etree.ElementTree as ET
 
 
@@ -26,7 +27,9 @@ def prop(parent, tag, name, value):
 
 def build_plan(workers=DEFAULT_WORKERS, sources_per_worker=DEFAULT_SOURCES_PER_WORKER,
                batches_per_source=DEFAULT_BATCHES_PER_SOURCE,
-               start_timestamp=DEFAULT_START_TIMESTAMP, functional_only=False):
+               start_timestamp=DEFAULT_START_TIMESTAMP, functional_only=False,
+               model="tree", database="", table_name="jmeter_fixed",
+               source_column="device_id", source_id="jmeter_fixed_source"):
     dimensions = (
         ("workers", workers, DEFAULT_WORKERS),
         ("sources_per_worker", sources_per_worker, DEFAULT_SOURCES_PER_WORKER),
@@ -37,6 +40,14 @@ def build_plan(workers=DEFAULT_WORKERS, sources_per_worker=DEFAULT_SOURCES_PER_W
             raise ValueError("{} must be an integer between 1 and {}".format(name, maximum))
     if not functional_only and any(value != maximum for _, value, maximum in dimensions):
         raise ValueError("Reduced workloads require --functional-only; they are not acceptance runs")
+    if model not in {"tree", "table"}:
+        raise ValueError("model must be tree or table")
+    for name, value in (("table_name", table_name), ("source_column", source_column), ("source_id", source_id)):
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError("{} must be a simple identifier".format(name))
+    if model == "table" and (not isinstance(database, str)
+            or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", database)):
+        raise ValueError("table model requires --database as a simple SQL identifier")
     rows_per_source = batches_per_source * ROWS_PER_BATCH
     if (not isinstance(start_timestamp, int) or isinstance(start_timestamp, bool)
             or not 0 <= start_timestamp <= (2 ** 63 - 1) - rows_per_source):
@@ -103,6 +114,11 @@ def build_plan(workers=DEFAULT_WORKERS, sources_per_worker=DEFAULT_SOURCES_PER_W
         "port": "${__P(port,6667)}",
         "username": "${__P(username,root)}",
         "password": "",
+        "model": model,
+        "database": database,
+        "table_name": table_name,
+        "source_column": source_column,
+        "source_id": source_id,
         "device_path": "${__P(device_path,root.jmeter.fixed)}",
         "run_id": "${__P(run_id,)}",
         "measurements": ",".join(MEASUREMENTS),
@@ -141,12 +157,18 @@ def main():
     parser.add_argument("--sources-per-worker", type=int, default=DEFAULT_SOURCES_PER_WORKER)
     parser.add_argument("--batches-per-source", type=int, default=DEFAULT_BATCHES_PER_SOURCE)
     parser.add_argument("--start-timestamp", type=int, default=DEFAULT_START_TIMESTAMP)
+    parser.add_argument("--model", choices=("tree", "table"), default="tree")
+    parser.add_argument("--database", default="")
+    parser.add_argument("--table-name", default="jmeter_fixed")
+    parser.add_argument("--source-column", default="device_id")
+    parser.add_argument("--source-id", default="jmeter_fixed_source")
     parser.add_argument("--functional-only", action="store_true",
                         help="Allow smaller dimensions; mark the plan as functional validation only")
     args = parser.parse_args()
     try:
         plan = build_plan(args.workers, args.sources_per_worker, args.batches_per_source,
-                          args.start_timestamp, args.functional_only)
+                          args.start_timestamp, args.functional_only, args.model, args.database,
+                          args.table_name, args.source_column, args.source_id)
     except ValueError as error:
         parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
