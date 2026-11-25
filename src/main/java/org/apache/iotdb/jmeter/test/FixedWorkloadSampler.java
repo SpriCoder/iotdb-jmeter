@@ -35,6 +35,9 @@ public class FixedWorkloadSampler extends AbstractJavaSamplerClient {
     replace(args, "table_name", "jmeter_fixed");
     replace(args, "source_column", "device_id");
     replace(args, "source_id", "jmeter_fixed_source");
+    replace(args, "use_ssl", "false");
+    replace(args, "trust_store", "");
+    replace(args, "trust_store_pwd", "");
     replace(args, "measurements", "s0,s1,s2,s3,s4,s5,s6,s7,s8,s9");
     replace(args, "data_types", "INT64,INT64,INT64,INT64,INT64,INT64,INT64,INT64,INT64,INT64");
     replace(args, "start_timestamp", "1700000000000");
@@ -75,6 +78,7 @@ public class FixedWorkloadSampler extends AbstractJavaSamplerClient {
       String signature = config.host + ":" + config.port + "/" + config.model + "/"
           + config.tableDatabase + "/" + config.tableName + "/" + config.sourceColumn + "/"
           + config.devicePath + "/" + config.sourceId + "/"
+          + config.useSsl + "/" + config.trustStore + "/"
           + workers + "/" + sources + "/" + batchesPerSource + "/"
           + config.startTimestamp + "/" + config.aligned;
       run = FixedRunCoordinator.acquire(config.runId, signature, workers);
@@ -159,6 +163,11 @@ public class FixedWorkloadSampler extends AbstractJavaSamplerClient {
       String password = config == null ? context.getParameter("password", "") : config.password;
       if (password != null && !password.isEmpty()) {
         message = message.replace(password, "[redacted]");
+      }
+      String trustSecret = config == null ? context.getParameter("trust_store_pwd", "")
+          : config.trustStorePassword;
+      if (trustSecret != null && !trustSecret.isEmpty()) {
+        message = message.replace(trustSecret, "[redacted]");
       }
       result.setResponseMessage(message.length() > 2000 ? message.substring(0, 2000) : message);
       result.setStopTest(true);

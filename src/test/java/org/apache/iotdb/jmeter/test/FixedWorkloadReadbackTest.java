@@ -43,6 +43,7 @@ public class FixedWorkloadReadbackTest {
     assertEquals("nx08_functional", options.database);
     assertEquals("jmeter_fixed", options.tableName);
     assertEquals("device_id", options.sourceColumn);
+    assertFalse(options.useSsl);
   }
 
   @Test
@@ -106,6 +107,7 @@ public class FixedWorkloadReadbackTest {
         {"--manifest", "sources.tsv", "--output", "result.json", "--port", "0"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--aligned", "unknown"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--model", "table"},
+        {"--manifest", "sources.tsv", "--output", "result.json", "--use-ssl", "true"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--model", "table",
             "--database", "nx08_functional", "--aligned", "true"},
         {"--manifest", "sources.tsv", "--output", "result.json", "--port", "6667", "--port", "6668"},

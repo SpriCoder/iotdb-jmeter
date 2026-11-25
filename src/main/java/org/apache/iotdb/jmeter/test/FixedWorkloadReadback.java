@@ -60,30 +60,45 @@ public final class FixedWorkloadReadback {
       report.manifestSha256 = sha256(raw);
       List<Entry> entries = parseManifest(raw, options.model);
       require(password != null && !password.isEmpty(), "Set IOTDB_PASSWORD before running readback");
+      if (options.useSsl) {
+        TlsVerifier.verify(options.host, options.port, options.trustStore, options.trustStorePassword, 5000);
+      }
       if (options.model.equals("tree")) {
-        session = new Session.Builder().host(options.host).port(options.port)
+        Session.Builder treeBuilder = new Session.Builder().host(options.host).port(options.port)
             .username(options.username).password(password).sqlDialect("tree")
-            .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
-            .timeOut(60000).build();
+            .useSSL(options.useSsl).enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
+            .timeOut(60000);
+        if (!options.trustStore.isEmpty()) {
+          treeBuilder.trustStore(options.trustStore).trustStorePwd(options.trustStorePassword);
+        }
+        session = treeBuilder.build();
         session.open(false, 5000);
         session.setQueryTimeout(60000);
         require("ms".equals(session.getTimestampPrecision()), "Server timestamp precision must be ms");
         report.serverVersion = serverVersion(session);
       } else {
-        Session precision = new Session.Builder().host(options.host).port(options.port)
+        Session.Builder precisionBuilder = new Session.Builder().host(options.host).port(options.port)
             .username(options.username).password(password).sqlDialect("table")
-            .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0).build();
+            .useSSL(options.useSsl).enableAutoFetch(false).enableRedirection(false).maxRetryCount(0);
+        if (!options.trustStore.isEmpty()) {
+          precisionBuilder.trustStore(options.trustStore).trustStorePwd(options.trustStorePassword);
+        }
+        Session precision = precisionBuilder.build();
         try {
           precision.open(false, 5000);
           require("ms".equals(precision.getTimestampPrecision()), "Server timestamp precision must be ms");
         } finally {
           precision.close();
         }
-        tableSession = new TableSessionBuilder()
+        TableSessionBuilder tableBuilder = new TableSessionBuilder()
             .nodeUrls(java.util.Collections.singletonList(options.host + ":" + options.port))
             .username(options.username).password(password).database(options.database)
             .queryTimeoutInMs(60000).connectionTimeoutInMs(5000)
-            .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0).build();
+            .useSSL(options.useSsl).enableAutoFetch(false).enableRedirection(false).maxRetryCount(0);
+        if (!options.trustStore.isEmpty()) {
+          tableBuilder.trustStore(options.trustStore).trustStorePwd(options.trustStorePassword);
+        }
+        tableSession = tableBuilder.build();
         List<String> fields = new ArrayList<>();
         for (int column = 0; column < 10; column++) {
           fields.add("s" + column);
@@ -409,7 +424,7 @@ public final class FixedWorkloadReadback {
       require(key.equals("--manifest") || key.equals("--output") || key.equals("--host")
           || key.equals("--port") || key.equals("--username") || key.equals("--aligned")
           || key.equals("--model") || key.equals("--database") || key.equals("--table-name")
-          || key.equals("--source-column"),
+          || key.equals("--source-column") || key.equals("--use-ssl") || key.equals("--trust-store"),
           "Unknown readback option");
       require(index + 1 < args.length && !args[index + 1].isEmpty() && !args[index + 1].startsWith("--"),
           "Readback option requires a value");
@@ -431,6 +446,14 @@ public final class FixedWorkloadReadback {
     String database = values.getOrDefault("--database", "");
     String tableName = values.getOrDefault("--table-name", "jmeter_fixed");
     String sourceColumn = values.getOrDefault("--source-column", "device_id");
+    String useSslValue = values.getOrDefault("--use-ssl", "false");
+    require(useSslValue.equals("true") || useSslValue.equals("false"), "Readback use-ssl must be true or false");
+    String trustStore = values.getOrDefault("--trust-store", "");
+    String trustStorePassword = System.getenv("IOTDB_TRUSTSTORE_PASSWORD");
+    require(!Boolean.parseBoolean(useSslValue) || !trustStore.isEmpty(),
+        "Set --trust-store when --use-ssl=true");
+    require(trustStore.isEmpty() || (trustStorePassword != null && !trustStorePassword.isEmpty()),
+        "Set IOTDB_TRUSTSTORE_PASSWORD when --trust-store is specified");
     if (model.equals("table")) {
       require(database.matches("[A-Za-z_][A-Za-z0-9_]*"), "Table readback requires a simple database name");
       require(tableName.matches("[A-Za-z_][A-Za-z0-9_]*"), "Table readback requires a simple table name");
@@ -441,7 +464,8 @@ public final class FixedWorkloadReadback {
         Paths.get(values.get("--output")).toAbsolutePath().normalize(),
         values.getOrDefault("--host", "127.0.0.1"), port,
         values.getOrDefault("--username", "root"), Boolean.parseBoolean(aligned),
-        model, database, tableName, sourceColumn);
+        model, database, tableName, sourceColumn, Boolean.parseBoolean(useSslValue),
+        trustStore, trustStorePassword == null ? "" : trustStorePassword);
   }
 
   private static Path extractPath(String[] args, String flag) {
@@ -487,8 +511,12 @@ public final class FixedWorkloadReadback {
     final String database;
     final String tableName;
     final String sourceColumn;
+    final boolean useSsl;
+    final String trustStore;
+    final String trustStorePassword;
     Options(Path manifest, Path output, String host, int port, String username, boolean aligned,
-        String model, String database, String tableName, String sourceColumn) {
+        String model, String database, String tableName, String sourceColumn, boolean useSsl,
+        String trustStore, String trustStorePassword) {
       this.manifest = manifest;
       this.output = output;
       this.host = host;
@@ -499,6 +527,9 @@ public final class FixedWorkloadReadback {
       this.database = database;
       this.tableName = tableName;
       this.sourceColumn = sourceColumn;
+      this.useSsl = useSsl;
+      this.trustStore = trustStore;
+      this.trustStorePassword = trustStorePassword;
     }
   }
 

@@ -36,17 +36,26 @@ final class SessionWriteClient implements WriteClient {
 
   @Override
   public void open(WriteConfig config) throws Exception {
+    if (config.useSsl) {
+      TlsVerifier.verify(config.host, config.port, config.trustStore, config.trustStorePassword,
+          config.connectionTimeoutMs);
+    }
     if (config.model.equals("table")) {
       openTable(config);
       return;
     }
-    session = new Session.Builder()
+    Session.Builder builder = new Session.Builder()
         .host(config.host).port(config.port)
         .username(config.username).password(config.password)
         // Leader-cache fallback can resend a failed write even with zero
         // retries. Keep routing on the configured endpoint for this benchmark.
-        .sqlDialect("tree").enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
-        .timeOut(config.queryTimeoutMs).build();
+        .sqlDialect("tree").useSSL(config.useSsl)
+        .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
+        .timeOut(config.queryTimeoutMs);
+    if (!config.trustStore.isEmpty()) {
+      builder.trustStore(config.trustStore).trustStorePwd(config.trustStorePassword);
+    }
+    session = builder.build();
     session.open(config.rpcCompression, config.connectionTimeoutMs);
     session.setQueryTimeout(config.queryTimeoutMs);
     if (!"ms".equals(session.getTimestampPrecision())) {
@@ -57,11 +66,16 @@ final class SessionWriteClient implements WriteClient {
 
   private void openTable(WriteConfig config) throws Exception {
     tableConfig = config;
-    Session bootstrap = new Session.Builder()
+    Session.Builder bootstrapBuilder = new Session.Builder()
         .host(config.host).port(config.port)
         .username(config.username).password(config.password)
-        .sqlDialect("table").enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
-        .timeOut(config.queryTimeoutMs).build();
+        .sqlDialect("table").useSSL(config.useSsl)
+        .enableAutoFetch(false).enableRedirection(false).maxRetryCount(0)
+        .timeOut(config.queryTimeoutMs);
+    if (!config.trustStore.isEmpty()) {
+      bootstrapBuilder.trustStore(config.trustStore).trustStorePwd(config.trustStorePassword);
+    }
+    Session bootstrap = bootstrapBuilder.build();
     try {
       bootstrap.open(config.rpcCompression, config.connectionTimeoutMs);
       if (!"ms".equals(bootstrap.getTimestampPrecision())) {
@@ -77,12 +91,17 @@ final class SessionWriteClient implements WriteClient {
     } finally {
       bootstrap.close();
     }
-    tableSession = new TableSessionBuilder()
+    TableSessionBuilder tableBuilder = new TableSessionBuilder()
         .nodeUrls(Collections.singletonList(config.host + ":" + config.port))
         .username(config.username).password(config.password).database(config.tableDatabase)
         .queryTimeoutInMs(config.queryTimeoutMs).connectionTimeoutInMs(config.connectionTimeoutMs)
         .enableCompression(config.rpcCompression)
-        .enableRedirection(false).enableAutoFetch(false).maxRetryCount(0).build();
+        .useSSL(config.useSsl)
+        .enableRedirection(false).enableAutoFetch(false).maxRetryCount(0);
+    if (!config.trustStore.isEmpty()) {
+      tableBuilder.trustStore(config.trustStore).trustStorePwd(config.trustStorePassword);
+    }
+    tableSession = tableBuilder.build();
   }
 
   @Override

@@ -90,4 +90,22 @@ public class TabletFactoryTest {
       }
     }
   }
+
+  @Test
+  public void validatesTlsTrustStoreSettings() {
+    WriteConfig config = new WriteConfig(JmeterTestTest.context(
+        "model", "table", "database", "nx08_functional", "table_name", "jmeter_probe",
+        "source_id", "jmeter_source", "use_ssl", "true", "trust_store", "client.truststore",
+        "trust_store_pwd", "trust_password_placeholder"));
+    assertTrue(config.useSsl);
+    assertEquals("client.truststore", config.trustStore);
+    assertEquals("trust_password_placeholder", config.trustStorePassword);
+    try {
+      new WriteConfig(JmeterTestTest.context("model", "table", "database", "nx08_functional",
+          "table_name", "jmeter_probe", "source_id", "jmeter_source", "use_ssl", "true"));
+      fail("SSL must require a truststore");
+    } catch (IllegalArgumentException expected) {
+      assertTrue(expected.getMessage().contains("trust_store"));
+    }
+  }
 }

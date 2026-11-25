@@ -40,6 +40,9 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     args.addArgument("table_name", "jmeter_data");
     args.addArgument("source_column", "device_id");
     args.addArgument("source_id", "jmeter_source");
+    args.addArgument("use_ssl", "false");
+    args.addArgument("trust_store", "");
+    args.addArgument("trust_store_pwd", "");
     args.addArgument("device_path", "root.jmeter.device");
     args.addArgument("device_per_thread", "true");
     args.addArgument("run_id", "");
@@ -232,6 +235,15 @@ public class JmeterTest extends AbstractJavaSamplerClient {
     String environmentPassword = System.getenv("IOTDB_PASSWORD");
     if (environmentPassword != null && !environmentPassword.isEmpty()) {
       message = message.replace(environmentPassword, "[redacted]");
+    }
+    String trustSecret = config == null ? context.getParameter("trust_store_pwd", "")
+        : config.trustStorePassword;
+    if (trustSecret != null && !trustSecret.isEmpty()) {
+      message = message.replace(trustSecret, "[redacted]");
+    }
+    String environmentTrustSecret = System.getenv("IOTDB_TRUSTSTORE_PASSWORD");
+    if (environmentTrustSecret != null && !environmentTrustSecret.isEmpty()) {
+      message = message.replace(environmentTrustSecret, "[redacted]");
     }
     return message.length() > 2000 ? message.substring(0, 2000) : message;
   }

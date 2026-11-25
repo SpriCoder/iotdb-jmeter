@@ -74,6 +74,21 @@
                 <stringProp name="Argument.value">${__P(source_id,jmeter_source)}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
+              <elementProp name="use_ssl" elementType="Argument">
+                <stringProp name="Argument.name">use_ssl</stringProp>
+                <stringProp name="Argument.value">${__P(use_ssl,false)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="trust_store" elementType="Argument">
+                <stringProp name="Argument.name">trust_store</stringProp>
+                <stringProp name="Argument.value">${__P(trust_store,)}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+              <elementProp name="trust_store_pwd" elementType="Argument">
+                <stringProp name="Argument.name">trust_store_pwd</stringProp>
+                <stringProp name="Argument.value" />
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
               <elementProp name="device_path" elementType="Argument">
                 <stringProp name="Argument.name">device_path</stringProp>
                 <stringProp name="Argument.value">${__P(device_path,root.jmeter.device)}</stringProp>

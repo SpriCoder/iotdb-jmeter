@@ -20,6 +20,9 @@ final class WriteConfig {
   final String tableName;
   final String sourceColumn;
   final String sourceId;
+  final boolean useSsl;
+  final String trustStore;
+  final String trustStorePassword;
   final String devicePath;
   final boolean devicePerThread;
   final String runId;
@@ -54,6 +57,14 @@ final class WriteConfig {
     tableName = context.getParameter("table_name", "jmeter_data").trim().toLowerCase(Locale.ROOT);
     sourceColumn = context.getParameter("source_column", "device_id").trim().toLowerCase(Locale.ROOT);
     sourceId = context.getParameter("source_id", "jmeter_source").trim();
+    useSsl = bool(context, "use_ssl", false);
+    trustStore = context.getParameter("trust_store", "").trim();
+    String suppliedTrustStorePassword = context.getParameter("trust_store_pwd", "");
+    trustStorePassword = suppliedTrustStorePassword.isEmpty()
+        ? System.getenv("IOTDB_TRUSTSTORE_PASSWORD") : suppliedTrustStorePassword;
+    require(trustStore.isEmpty() || (trustStorePassword != null && !trustStorePassword.isEmpty()),
+        "Set IOTDB_TRUSTSTORE_PASSWORD when trust_store is specified");
+    require(!useSsl || !trustStore.isEmpty(), "Set trust_store when use_ssl=true");
     if (model.equals("table")) {
       requireIdentifier(tableDatabase, "database");
       requireIdentifier(tableName, "table_name");
